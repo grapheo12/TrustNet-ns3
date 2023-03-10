@@ -1,6 +1,104 @@
 #include "main.h"
+#include <vector>
+#include <random>
+
+#define TOPOLOGY_SUBNET "10.0.0.0"
+#define SERVER_SUBNET   "11.0.0.0"
+#define CLIENT_SUBNET   "9.0.0.0"
+#define SWITCH_SUBNET   "8.0.0.0"
+#define COMMON_MASK     "255.255.255.0"
 
 NS_LOG_COMPONENT_DEFINE("TrustNet_Main");
+
+std::vector<std::pair<NodeContainer, Ipv4InterfaceContainer>>   // AS => NodeContainer, Interface of servers
+randomNodeAssignment(
+    BriteTopologyHelper& bth,
+    InternetStackHelper& stack,
+    Ipv4AddressHelper& address,                                 // SetBase before calling this function
+    double load_ratio)                                          // load_ratio = #new nodes / #leaf nodes in AS; load_ratio = 0 => 1 node per AS
+{
+    NS_LOG_INFO("Random P2P node Init");
+    std::vector<std::pair<NodeContainer, Ipv4InterfaceContainer>> assgn;
+    uint32_t nas = bth.GetNAs();
+    PointToPointHelper p2p;
+    p2p.SetDeviceAttribute("DataRate", StringValue("5Mbps"));
+    p2p.SetChannelAttribute("Delay", StringValue("2ms"));
+
+    for (uint32_t i = 0; i < nas; i++){
+        uint32_t nleaf = bth.GetNLeafNodesForAs(i);
+        uint32_t nserver = (uint32_t)(load_ratio * nleaf);
+        if (nserver == 0) nserver++;
+
+        NS_LOG_INFO("AS: " << i << " Leaf Nodes: " << nleaf << " Nodes to create: " << nserver);
+        std::default_random_engine eng;
+        std::uniform_int_distribution<uint32_t> dist(0, nserver - 1);
+
+        NodeContainer servers;
+        Ipv4InterfaceContainer interfaces;
+        servers.Create(nserver);
+        stack.Install(servers);
+
+        for (uint32_t j = 0; j < nserver; j++){
+            NodeContainer __nodes;
+            __nodes.Add(servers.Get(j));
+            __nodes.Add(bth.GetLeafNodeForAs(i, dist(eng)));
+            auto __p2pdevs = p2p.Install(__nodes);
+            Ipv4InterfaceContainer __interfaces = address.Assign(__p2pdevs);
+            interfaces.Add(__interfaces.Get(0));
+        }
+
+        assgn.push_back(std::make_pair(servers, interfaces));
+    }
+
+    return assgn;
+}
+
+std::pair<std::vector<RIB>, ApplicationContainer>
+installRIBs(
+    std::vector<std::pair<NodeContainer, Ipv4InterfaceContainer>>& serverAssgn,
+    Time start, Time stop)
+{
+    std::vector<RIB> ribs;
+    ApplicationContainer apps;
+
+    for (auto& x: serverAssgn){
+        RIB rib(x.second.GetAddress(0));
+        apps.Add(rib.Install(x.first.Get(0)));
+        ribs.push_back(rib);
+    }
+
+    apps.Start(start);
+    apps.Stop(stop);
+
+    return std::make_pair(ribs, apps);
+}
+
+std::pair<std::vector<OverlaySwitch>, ApplicationContainer>
+installSwitches(
+    std::vector<std::pair<NodeContainer, Ipv4InterfaceContainer>>& switchAssgn,
+    std::vector<std::pair<NodeContainer, Ipv4InterfaceContainer>>& serverAssgn,
+    Time start, Time stop)
+{
+    std::vector<OverlaySwitch> oswitches;
+    ApplicationContainer apps;
+
+    uint32_t nas = serverAssgn.size();
+
+    for (uint32_t i = 0; i < nas; i++){
+        for (uint32_t j = 0; j < switchAssgn[i].second.GetN(); j++){
+            OverlaySwitch oswitch(switchAssgn[i].second.GetAddress(j), serverAssgn[i].second.GetAddress(0));
+            ApplicationContainer oswitchApps(oswitch.Install(switchAssgn[i].first.Get(0)));
+
+            oswitches.push_back(oswitch);
+            apps.Add(oswitchApps);
+        }
+    }
+
+    apps.Start(start);
+    apps.Stop(stop);
+
+    return std::make_pair(oswitches, apps);
+}
 
 
 int
@@ -42,44 +140,12 @@ main(int argc, char* argv[])
     }
 
     Ipv4AddressHelper address;
-    address.SetBase("10.0.0.0", "255.255.255.224");
+    address.SetBase(TOPOLOGY_SUBNET, COMMON_MASK);
 
     bth.BuildBriteTopology(stack);
     bth.AssignIpv4Addresses(address);
 
-    int cnt = 0;
-
     NS_LOG_INFO("Number of AS created " << bth.GetNAs());
-    // for (uint32_t i = 0; i < bth.GetNAs(); i++){
-    //     NS_LOG_INFO("Number of nodes in AS" << i << ": " << bth.GetNNodesForAs(i));
-    //     for (uint32_t j = 0; j < bth.GetNNodesForAs(i); j++){
-    //         auto Node = bth.GetNodeForAs(i, j);
-    //         NS_LOG_INFO("\t" << "AS: " << i << " Node: " << j << " Number of devices: " << Node->GetNDevices());
-    //         if (Node->GetNDevices() > 2){
-    //             for (uint32_t k = 0; k < Node->GetNDevices(); k++){
-    //                 auto addr = Node->GetDevice(k)->GetAddress();
-    //                 NS_LOG_INFO("\t\t" << "AS: " << i << " Switch: " << j << " Device: " << k << " Addr: " << addr);
-    //             }
-    //         }else{
-    //             auto addr = Node->GetDevice(1)->GetAddress();
-    //             NS_LOG_INFO("\t\t" << "AS: " << i << " Leaf: " << j << " Addr: " << addr);            
-    //         }
-    //     }
-    //     NS_LOG_INFO("Number of leaf nodes in AS" << i << ": " << bth.GetNLeafNodesForAs(i));
-    //     for (uint32_t j = 0; j < bth.GetNLeafNodesForAs(i); j++){
-    //         auto leafNode = bth.GetLeafNodeForAs(i, j);
-    //         NS_LOG_INFO("\t" << "AS: " << i << " Leaf: " << j << " Number of devices: " << leafNode->GetNDevices());
-    //         if (leafNode->GetNDevices() > 2){
-    //             for (uint32_t k = 0; k < leafNode->GetNDevices(); k++){
-    //                 auto addr = leafNode->GetDevice(k)->GetAddress();
-    //                 NS_LOG_INFO("\t\t" << "AS: " << i << " Switch: " << j << " Device: " << k << " Addr: " << addr);
-    //             }
-    //         }else{
-    //             auto addr = leafNode->GetDevice(1)->GetAddress();
-    //             NS_LOG_INFO("\t\t" << "AS: " << i << " Leaf: " << j << " Addr: " << addr);            
-    //         }
-    //     }
-    // }
 
     // The BRITE topology generator generates a topology of routers.  Here we create
     // two subnetworks which we attach to router leaf nodes generated by BRITE
@@ -87,54 +153,42 @@ main(int argc, char* argv[])
     // use just one node
 
     NodeContainer client;
-    NodeContainer server;
-    NodeContainer overlaySwitch;
 
     client.Create(1);
     stack.Install(client);
-    server.Create(1);
-    stack.Install(server);
-    overlaySwitch.Create(1);
-    stack.Install(overlaySwitch);
 
     int numLeafNodesInAsNine = bth.GetNLeafNodesForAs(9);
     client.Add(bth.GetLeafNodeForAs(9, numLeafNodesInAsNine - 1));
-    server.Add(bth.GetLeafNodeForAs(9, numLeafNodesInAsNine - 2));
-    overlaySwitch.Add(bth.GetLeafNodeForAs(9, numLeafNodesInAsNine - 3));
 
     p2p.SetDeviceAttribute("DataRate", StringValue("5Mbps"));
     p2p.SetChannelAttribute("Delay", StringValue("2ms"));
 
     NetDeviceContainer p2pClientDevices;
-    NetDeviceContainer p2pServerDevices;
-    NetDeviceContainer p2pOverlaySwitchDevices;
-
     p2pClientDevices = p2p.Install(client);
-    p2pServerDevices = p2p.Install(server);
-    p2pOverlaySwitchDevices = p2p.Install(overlaySwitch);
 
     address.SetBase("11.1.0.0", "255.255.0.0");
     Ipv4InterfaceContainer clientInterfaces;
     clientInterfaces = address.Assign(p2pClientDevices);
 
-    address.SetBase("13.2.0.0", "255.255.0.0");
-    Ipv4InterfaceContainer serverInterfaces;
-    serverInterfaces = address.Assign(p2pServerDevices);
+    address.SetBase(SERVER_SUBNET, COMMON_MASK);
+    auto serverAssgn = randomNodeAssignment(
+        bth, stack, address, 0
+    );
 
-    address.SetBase("15.2.0.0", "255.255.0.0");
-    Ipv4InterfaceContainer overlaySwitchInterfaces;
-    overlaySwitchInterfaces = address.Assign(p2pOverlaySwitchDevices);
+    address.SetBase(SWITCH_SUBNET, COMMON_MASK);
+    auto switchAssgn = randomNodeAssignment(
+        bth, stack, address, 0.1
+    );
 
-    RIB rib1(serverInterfaces.GetAddress(0));
-    ApplicationContainer serverApps(rib1.Install(server.Get(0)));
-    serverApps.Start(Seconds(0.5));
-    serverApps.Stop(Seconds(15.0));
+
+
+    auto ribs = installRIBs(serverAssgn, Seconds(0.5), Seconds(15.0));
 
     ns3::ObjectFactory fac;
     fac.SetTypeId(DCServerAdvertiser::GetTypeId());
 
     Ptr<DCServerAdvertiser> echoClient = fac.Create<DCServerAdvertiser>();
-    echoClient->SetRemote(rib1.my_addr, RIBADSTORE_PORT);
+    echoClient->SetRemote(ribs.first[9].my_addr, RIBADSTORE_PORT);
     echoClient->SetAttribute("MaxPackets", UintegerValue(100));
     echoClient->SetAttribute("Interval", TimeValue(Seconds(1.)));
     echoClient->SetAttribute("PacketSize", UintegerValue(1024));
@@ -148,10 +202,7 @@ main(int argc, char* argv[])
     clientApps.Start(Seconds(0.8));
     clientApps.Stop(Seconds(15.0));
 
-    OverlaySwitch oswitch1(overlaySwitchInterfaces.GetAddress(0), serverInterfaces.GetAddress(0));
-    ApplicationContainer oswitchApps(oswitch1.Install(overlaySwitch.Get(0)));
-    oswitchApps.Start(Seconds(0.9));
-    oswitchApps.Stop(Seconds(15.0));
+    auto switches = installSwitches(switchAssgn, serverAssgn, Seconds(0.9), Seconds(15.0));
 
     if (!nix)
     {

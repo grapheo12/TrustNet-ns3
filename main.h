@@ -1,5 +1,7 @@
 #pragma once
 
+// TODO: Anycast Hysteresis;
+// Failover at Network level so that switches can adapt for mobility
 #include "ns3/applications-module.h"
 #include "ns3/brite-module.h"
 #include "ns3/core-module.h"
@@ -177,7 +179,7 @@ class RIB
         Address my_addr;
         std::set<std::string> *ads;
         std::set<Address> *liveSwitches;
-        
+
         RIB(Address myAddr);
         ~RIB();
         ApplicationContainer Install(Ptr<Node> node);
