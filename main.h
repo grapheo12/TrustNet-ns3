@@ -38,6 +38,7 @@ namespace ns3{
         void SetRemote(Address ip, uint16_t port);
         void SetRemote(Address addr);
         uint64_t GetTotalTx() const;
+        void HandlePeers(Ptr<Socket> socket);
 
     protected:
         void DoDispose() override;
@@ -73,8 +74,11 @@ namespace ns3{
         uint64_t GetReceived() const;
         uint16_t GetPacketWindowSize() const;
         void SetPacketWindowSize(uint16_t size);
+        void SetContext(void *ctx);
+        void SendPeers(Ptr<Socket> socket, Address dest);
         std::set<std::string> db;
 
+        void *parent_ctx;
     protected:
         void DoDispose() override;
 
@@ -203,4 +207,20 @@ class OverlaySwitch
     private:
         ns3::ObjectFactory pingClientFactory;
         ns3::ObjectFactory pingServerFactory;
+};
+
+class DCServer
+{
+    public:
+        Ptr<DCServerAdvertiser> advertiser;
+        Address my_addr;
+        Address rib_addr;
+        Address switch_addr;
+
+        DCServer(Address myAddr, Address ribAddr);
+        ~DCServer();
+        ApplicationContainer Install(Ptr<Node> node);
+
+    private:
+        ns3::ObjectFactory advertiserFactory;
 };

@@ -24,6 +24,7 @@ ApplicationContainer RIB::Install(Ptr<Node> node)
     node->AddApplication(linkManager);
     this->liveSwitches = &linkManager->liveSwitches;
 
+    adStore->SetContext((void *)this);
     ApplicationContainer apps;
     apps.Add(adStore);
     apps.Add(linkManager);

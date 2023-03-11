@@ -53,24 +53,26 @@ randomNodeAssignment(
     return assgn;
 }
 
-std::pair<std::vector<RIB>, ApplicationContainer>
+std::pair<std::vector<RIB *>, ApplicationContainer>
 installRIBs(
     std::vector<std::pair<NodeContainer, Ipv4InterfaceContainer>>& serverAssgn,
     Time start, Time stop)
 {
-    std::vector<RIB> ribs;
+    std::vector<RIB *> ribs;
     ApplicationContainer apps;
 
     for (auto& x: serverAssgn){
-        RIB rib(x.second.GetAddress(0));
-        apps.Add(rib.Install(x.first.Get(0)));
+        RIB *rib = new RIB(x.second.GetAddress(0));
+        apps.Add(rib->Install(x.first.Get(0)));
         ribs.push_back(rib);
     }
 
     apps.Start(start);
     apps.Stop(stop);
 
-    return std::make_pair(ribs, apps);
+    auto ret = std::make_pair(ribs, apps);
+
+    return ret;
 }
 
 std::pair<std::vector<OverlaySwitch>, ApplicationContainer>
@@ -87,7 +89,7 @@ installSwitches(
     for (uint32_t i = 0; i < nas; i++){
         for (uint32_t j = 0; j < switchAssgn[i].second.GetN(); j++){
             OverlaySwitch oswitch(switchAssgn[i].second.GetAddress(j), serverAssgn[i].second.GetAddress(0));
-            ApplicationContainer oswitchApps(oswitch.Install(switchAssgn[i].first.Get(0)));
+            ApplicationContainer oswitchApps(oswitch.Install(switchAssgn[i].first.Get(j)));
 
             oswitches.push_back(oswitch);
             apps.Add(oswitchApps);
@@ -180,26 +182,25 @@ main(int argc, char* argv[])
         bth, stack, address, 0.1
     );
 
-
-
     auto ribs = installRIBs(serverAssgn, Seconds(0.5), Seconds(15.0));
 
-    ns3::ObjectFactory fac;
-    fac.SetTypeId(DCServerAdvertiser::GetTypeId());
+    // ns3::ObjectFactory fac;
+    // fac.SetTypeId(DCServerAdvertiser::GetTypeId());
 
-    Ptr<DCServerAdvertiser> echoClient = fac.Create<DCServerAdvertiser>();
-    echoClient->SetRemote(ribs.first[9].my_addr, RIBADSTORE_PORT);
-    echoClient->SetAttribute("MaxPackets", UintegerValue(100));
-    echoClient->SetAttribute("Interval", TimeValue(Seconds(1.)));
-    echoClient->SetAttribute("PacketSize", UintegerValue(1024));
+    // Ptr<DCServerAdvertiser> echoClient = fac.Create<DCServerAdvertiser>();
+    // echoClient->SetRemote(ribs.first[9].my_addr, RIBADSTORE_PORT);
+    // echoClient->SetAttribute("MaxPackets", UintegerValue(100));
+    // echoClient->SetAttribute("Interval", TimeValue(Seconds(1.)));
+    // echoClient->SetAttribute("PacketSize", UintegerValue(1024));
+
+    DCServer dcs(clientInterfaces.GetAddress(0), ribs.first[3]->my_addr);
+    ApplicationContainer clientApps(dcs.Install(client.Get(0)));
 
     for (int i = 0; i < 10; i++){
-        echoClient->dcNameList.push_back("Shubham Mishra");
+        dcs.advertiser->dcNameList.push_back("Shubham Mishra");
     }
 
-    client.Get(0)->AddApplication(echoClient);
-    ApplicationContainer clientApps(echoClient);
-    clientApps.Start(Seconds(0.8));
+    clientApps.Start(Seconds(4.0));
     clientApps.Stop(Seconds(15.0));
 
     auto switches = installSwitches(switchAssgn, serverAssgn, Seconds(0.9), Seconds(15.0));

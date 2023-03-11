@@ -10,6 +10,7 @@ namespace ns3
     TypeId
     RIBAdStore::GetTypeId()
     {
+        void *x;
         static TypeId tid =
             TypeId("ns3::RIBAdStore")
                 .SetParent<Application>()
@@ -43,6 +44,12 @@ namespace ns3
     {
         NS_LOG_FUNCTION(this);
         m_received = 0;
+        // parent_ctx = ctx;
+    }
+
+    void RIBAdStore::SetContext(void *ctx)
+    {
+        parent_ctx = ctx;
     }
 
     RIBAdStore::~RIBAdStore()
@@ -130,6 +137,22 @@ namespace ns3
     }
 
     void
+    RIBAdStore::SendPeers(Ptr<Socket> socket, Address dest)
+    {
+        RIB *rib = (RIB *)(this->parent_ctx);
+        std::cout << "Live switches: " << rib->liveSwitches->size() << std::endl;
+        std::stringstream ss;
+        for (auto x = rib->liveSwitches->begin(); x != rib->liveSwitches->end(); x++){
+            ss << *x << " ";
+        }
+        std::string resp = ss.str();
+
+        NS_LOG_INFO("Sending GIVEPEERS response: " << resp);
+        Ptr<Packet> p = Create<Packet>((const uint8_t *)resp.c_str(), resp.size());
+        NS_LOG_INFO("Send status: " << socket->SendTo(p, 0, dest));
+    }
+
+    void
     RIBAdStore::HandleRead(Ptr<Socket> socket)
     {
         NS_LOG_FUNCTION(this << socket);
@@ -152,8 +175,12 @@ namespace ns3
                 packet->CopyData(&ss, packet->GetSize());
                 std::string ad(ss.str());
                 NS_LOG_INFO(ad);
-                db.insert(ad);
-                NS_LOG_INFO("Number of ads: " << db.size());
+                if (ad == "GIVEPEERS"){
+                    Simulator::ScheduleNow(&RIBAdStore::SendPeers, this, socket, from);
+                }else{
+                    db.insert(ad);
+                    NS_LOG_INFO("Number of ads: " << db.size());
+                }
 
                 uint32_t currentSequenceNumber = seqTs.GetSeq();
                 if (InetSocketAddress::IsMatchingType(from))
