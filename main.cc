@@ -53,6 +53,32 @@ randomNodeAssignment(
     return assgn;
 }
 
+void assignRandomASPeers(const std::vector<RIB *>& ribs) 
+{
+    auto rng = std::default_random_engine {};
+    std::vector<RIB *> queue = ribs; // copies the ribs vector
+
+    for (auto rib = ribs.begin(); rib != ribs.end(); rib++)
+    {
+        // * seeding is turned off so that each run of the program has the same series of random numbers
+        // srand((unsigned) time(NULL)); 
+        int num_peers = rand() % (ribs.size() / 2);
+        std::shuffle(queue.begin(), queue.end(), rng);
+
+        std::vector<Address> addresses;
+        for (int i = 0; i < num_peers; i++)
+        {
+            RIB* picked = queue[queue.size()-1-i];
+            Address picked_addr = Address(picked->my_addr);
+            addresses.push_back(picked_addr);
+        }
+        // * add peers for current rib
+        (*rib)->AddPeers(addresses);
+
+        NS_LOG_INFO("number of peers for rib " << (*rib)->my_addr << " is " << (*rib)->peers.size());
+    }
+}
+
 std::pair<std::vector<RIB *>, ApplicationContainer>
 installRIBs(
     std::vector<std::pair<NodeContainer, Ipv4InterfaceContainer>>& serverAssgn,
@@ -160,29 +186,32 @@ main(int argc, char* argv[])
     stack.Install(client);
 
     int numLeafNodesInAsNine = bth.GetNLeafNodesForAs(9);
-    client.Add(bth.GetLeafNodeForAs(9, numLeafNodesInAsNine - 1));
+    client.Add(bth.GetLeafNodeForAs(9, numLeafNodesInAsNine - 1)); // * attach the client to the final leaf of the AS-9 
 
     p2p.SetDeviceAttribute("DataRate", StringValue("5Mbps"));
     p2p.SetChannelAttribute("Delay", StringValue("2ms"));
 
     NetDeviceContainer p2pClientDevices;
-    p2pClientDevices = p2p.Install(client);
+    p2pClientDevices = p2p.Install(client); // * establish a p2p link between the client and the leaf router
 
-    address.SetBase("11.1.0.0", "255.255.0.0");
+    address.SetBase("11.1.0.0", "255.255.0.0"); // ? Why this range? Why does the switch also have a client IP?
     Ipv4InterfaceContainer clientInterfaces;
-    clientInterfaces = address.Assign(p2pClientDevices);
+    clientInterfaces = address.Assign(p2pClientDevices); // * assign ipv4 addresses for both endpoints of the p2p link
 
-    address.SetBase(SERVER_SUBNET, COMMON_MASK);
+    address.SetBase(SERVER_SUBNET, COMMON_MASK); // * 1 server per AS
     auto serverAssgn = randomNodeAssignment(
         bth, stack, address, 0
     );
 
-    address.SetBase(SWITCH_SUBNET, COMMON_MASK);
+    address.SetBase(SWITCH_SUBNET, COMMON_MASK); // * 1 overlay switch out of every 10 underlay switches 
     auto switchAssgn = randomNodeAssignment(
         bth, stack, address, 0.1
     );
 
     auto ribs = installRIBs(serverAssgn, Seconds(0.5), Seconds(15.0));
+
+    // * add peers to each RIB
+    assignRandomASPeers(ribs.first);
 
     // ns3::ObjectFactory fac;
     // fac.SetTypeId(DCServerAdvertiser::GetTypeId());
@@ -193,7 +222,7 @@ main(int argc, char* argv[])
     // echoClient->SetAttribute("Interval", TimeValue(Seconds(1.)));
     // echoClient->SetAttribute("PacketSize", UintegerValue(1024));
 
-    DCServer dcs(clientInterfaces.GetAddress(0), ribs.first[3]->my_addr);
+    DCServer dcs(clientInterfaces.GetAddress(0), ribs.first[3]->my_addr); // ? Why index 3
     ApplicationContainer clientApps(dcs.Install(client.Get(0)));
 
     for (int i = 0; i < 10; i++){

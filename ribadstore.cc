@@ -10,7 +10,7 @@ namespace ns3
     TypeId
     RIBAdStore::GetTypeId()
     {
-        void *x;
+        // void *x;
         static TypeId tid =
             TypeId("ns3::RIBAdStore")
                 .SetParent<Application>()
@@ -139,7 +139,7 @@ namespace ns3
     void
     RIBAdStore::SendPeers(Ptr<Socket> socket, Address dest)
     {
-        RIB *rib = (RIB *)(this->parent_ctx);
+        RIB *rib = (RIB *)(this->parent_ctx); // * parent context is the RIB helper class
         std::cout << "Live switches: " << rib->liveSwitches->size() << std::endl;
         std::stringstream ss;
         for (auto x = rib->liveSwitches->begin(); x != rib->liveSwitches->end(); x++){
@@ -174,7 +174,10 @@ namespace ns3
                 std::stringstream ss;
                 packet->CopyData(&ss, packet->GetSize());
                 std::string ad(ss.str());
+
+                // * printout the received packet body
                 NS_LOG_INFO(ad);
+                
                 if (ad == "GIVEPEERS"){
                     Simulator::ScheduleNow(&RIBAdStore::SendPeers, this, socket, from);
                 }else{

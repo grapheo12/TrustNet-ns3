@@ -31,3 +31,14 @@ ApplicationContainer RIB::Install(Ptr<Node> node)
 
     return apps;
 }
+
+
+bool RIB::AddPeers(std::vector<Address> &addresses)
+{
+    for (auto a = addresses.begin(); a != addresses.end(); a++) 
+    {
+        peers.insert(Address(*a)); // copy and create new address instance
+    }
+
+    return true;
+}

@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 #include <set>
+#include <cstdlib>
 
 #define RIBADSTORE_PORT 3001
 #define RIBLSM_PORT 3002
@@ -31,7 +32,7 @@ namespace ns3{
     public:
         static TypeId GetTypeId();
         std::vector<std::string> dcNameList;
-        int sentNum;
+        uint32_t sentNum;
 
         DCServerAdvertiser();
         ~DCServerAdvertiser() override;
@@ -183,10 +184,12 @@ class RIB
         Address my_addr;
         std::set<std::string> *ads;
         std::set<Address> *liveSwitches;
+        std::set<Address> peers;
 
         RIB(Address myAddr);
         ~RIB();
         ApplicationContainer Install(Ptr<Node> node);
+        bool AddPeers(std::vector<Address> &addresses);
 
     private:
         ns3::ObjectFactory adStoreFactory;
