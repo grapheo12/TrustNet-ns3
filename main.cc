@@ -236,7 +236,15 @@ main(int argc, char* argv[])
     ApplicationContainer clientApps(dcs.Install(client.Get(0)));
 
     for (int i = 0; i < 10; i++){
-        dcs.advertiser->dcNameList.push_back("Shubham Mishra");
+        // creat advertisement packet
+        Json::Value serializeRoot;
+        serializeRoot["dc_name"] = "Shubham Mishra";
+        serializeRoot["r_transitivity"] = 2;
+        // serialize the packet
+        Json::StyledWriter writer;
+        std::string advertisement = writer.write(serializeRoot);
+        // add name to the name list to be advertised
+        dcs.advertiser->dcNameList.push_back(advertisement);
     }
 
     clientApps.Start(Seconds(4.0));

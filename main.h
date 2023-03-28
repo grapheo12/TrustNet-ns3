@@ -10,12 +10,14 @@
 #include "ns3/network-module.h"
 #include "ns3/nix-vector-helper.h"
 #include "ns3/point-to-point-module.h"
+#include "json/json.h"
 
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
 #include <set>
+#include <unordered_map>
 #include <cstdlib>
 
 #define RIBADSTORE_PORT 3001
@@ -77,7 +79,7 @@ namespace ns3{
         void SetPacketWindowSize(uint16_t size);
         void SetContext(void *ctx);
         void SendPeers(Ptr<Socket> socket, Address dest);
-        std::set<std::string> db;
+        std::unordered_map<std::string, int> db;
 
         void *parent_ctx;
     protected:
@@ -182,7 +184,7 @@ class RIB
         Ptr<RIBAdStore> adStore;
         Ptr<RIBLinkStateManager> linkManager;
         Address my_addr;
-        std::set<std::string> *ads;
+        std::unordered_map<std::string, int> *ads;
         std::set<Address> *liveSwitches;
         std::set<Address> peers;
 

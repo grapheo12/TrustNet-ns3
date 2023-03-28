@@ -181,7 +181,17 @@ namespace ns3
                 if (ad == "GIVEPEERS"){
                     Simulator::ScheduleNow(&RIBAdStore::SendPeers, this, socket, from);
                 }else{
-                    db.insert(ad);
+                    // * deserialize the advertisement packet
+                    Json::Value deserializeRoot;
+                    Json::Reader reader;
+                    if (!reader.parse(ad, deserializeRoot)) {
+                        NS_LOG_ERROR("Cannot parse ads: " << ad);
+                        continue;
+                    }
+                    std::string content = deserializeRoot.get("dc_name", "empty").asString();
+                    int r_transitivity = deserializeRoot.get("r_transitivity", 1).asInt();
+                    // db.insert(ad);
+                    db[content] = r_transitivity;
                     NS_LOG_INFO("Number of ads: " << db.size());
                 }
 
