@@ -58,24 +58,34 @@ void assignRandomASPeers(const std::vector<RIB *>& ribs)
     auto rng = std::default_random_engine {};
     std::vector<RIB *> queue = ribs; // copies the ribs vector
 
-    for (auto rib = ribs.begin(); rib != ribs.end(); rib++)
-    {
+    for (auto rib = ribs.begin(); rib != ribs.end(); rib++) {
         // * seeding is turned off so that each run of the program has the same series of random numbers
         // srand((unsigned) time(NULL)); 
-        int num_peers = rand() % (ribs.size() / 2);
+        int num_peers = rand() % (ribs.size() / 2) + 1;
         std::shuffle(queue.begin(), queue.end(), rng);
 
         std::vector<Address> addresses;
-        for (int i = 0; i < num_peers; i++)
-        {
-            RIB* picked = queue[queue.size()-1-i];
-            Address picked_addr = Address(picked->my_addr);
-            addresses.push_back(picked_addr);
+
+
+        size_t index = queue.size()-1;
+        while (num_peers > 0) {
+            RIB* picked = queue[index];    
+            if (picked->my_addr != (*rib)->my_addr) {
+                Address picked_addr = Address(picked->my_addr);
+                addresses.push_back(picked_addr);
+                --num_peers;
+            }
+            --index;
+            
         }
+
         // * add peers for current rib
         (*rib)->AddPeers(addresses);
 
         NS_LOG_INFO("number of peers for rib " << (*rib)->my_addr << " is " << (*rib)->peers.size());
+        for (auto& addr : (*rib)->peers) {
+            NS_LOG_INFO("  addresses are: " << addr);
+        }
     }
 }
 
