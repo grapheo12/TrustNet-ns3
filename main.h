@@ -241,7 +241,7 @@ class DCServer
 class NameDBEntry
 {
 public:
-    NameDBEntry(std::string& _dc_name, int _r_transitivity, Address& _origin_AS_addr);
+    NameDBEntry(std::string& _dc_name, int _r_transitivity, Ipv4Address& _origin_AS_addr);
 
     ~NameDBEntry();
 
@@ -250,7 +250,7 @@ public:
 
     std::string dc_name;
     int r_transitivity;
-    Address origin_AS_addr;
+    Ipv4Address origin_AS_addr;
     // possibly also expire time...
 
 

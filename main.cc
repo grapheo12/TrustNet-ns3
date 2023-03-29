@@ -82,10 +82,10 @@ void assignRandomASPeers(const std::vector<RIB *>& ribs)
         // * add peers for current rib
         (*rib)->AddPeers(addresses);
 
-        NS_LOG_INFO("number of peers for rib " << (*rib)->my_addr << " is " << (*rib)->peers.size());
-        for (auto& addr : (*rib)->peers) {
-            NS_LOG_INFO("  addresses are: " << addr);
-        }
+        NS_LOG_INFO("number of peers for rib " << Ipv4Address::ConvertFrom((*rib)->my_addr) << " is " << (*rib)->peers.size());
+        // for (auto& addr : (*rib)->peers) {
+        //     NS_LOG_INFO("  addresses are: " << addr);
+        // }
     }
 }
 

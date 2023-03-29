@@ -161,8 +161,8 @@ namespace ns3
 
         std::string& dc_name = advertised->dc_name;
         int r_transitivity = advertised->r_transitivity;
-        Address& origin_AS_addr = advertised->origin_AS_addr;
-        
+        Ipv4Address origin_AS_addr = advertised->origin_AS_addr;
+
         RIB *rib = (RIB *)(this->parent_ctx); // * parent context is the RIB class
         // store ads if
         //   1. origin address is current rib's address
@@ -188,11 +188,13 @@ namespace ns3
 
     void
     RIBAdStore::ForwardAds(Ptr<Socket> socket, std::string& content, Address dest) {
-        // RIB *rib = (RIB *)(this->parent_ctx);
-        
-        Ptr<Packet> p = Create<Packet>((const uint8_t *)content.c_str(), content.size());
-        // ! bug, sending is error
-        NS_LOG_INFO("Forward Ads to " << dest << ". Sent " << socket->SendTo(p, 0, dest));
+        // Need to add header because the same type of header is alwasy striped down on the HandleRead() side
+        SeqTsHeader seqTS;  //! not initialized, do we care sequence number and timestamp?
+        Ptr<Packet> p = Create<Packet>(0); // 8+4 : the size of the seqTs header
+        p->AddHeader(seqTS);
+        Ptr<Packet> __p = Create<Packet>((const uint8_t *)content.c_str(), content.size());
+        p->AddAtEnd(__p);
+        NS_LOG_INFO("> Sent " << socket->SendTo(p, 0, dest));
     }
 
     void
@@ -219,7 +221,9 @@ namespace ns3
                 std::string ad(ss.str());
 
                 // * printout the received packet body
-                NS_LOG_INFO(ad);
+                RIB *rib = (RIB *)(this->parent_ctx);
+                // NS_LOG_INFO("I am ribadstore at " << Ipv4Address::ConvertFrom(rib->my_addr));
+                NS_LOG_INFO("" << Ipv4Address::ConvertFrom(rib->my_addr) <<  " received: " << ad);
 
                 if (ad == "GIVEPEERS"){
                     Simulator::ScheduleNow(&RIBAdStore::SendPeers, this, socket, from);
@@ -249,8 +253,11 @@ namespace ns3
                                 //     1. the destination is what this ads came from
                                 //     2. the destination is the origin AS
                                 //     3. .. 
-                                if (addr != from && addr != advertised_entry->origin_AS_addr) {
-                                    Simulator::ScheduleNow(&RIBAdStore::ForwardAds, this, socket, serialized, addr);
+                                Address dest_socket = InetSocketAddress(Ipv4Address::ConvertFrom(addr), RIBADSTORE_PORT);
+                                if (dest_socket != from && addr != advertised_entry->origin_AS_addr) {
+                                    Ipv4Address temp = Ipv4Address::ConvertFrom(addr);
+                                    NS_LOG_INFO("Forward Ads to " << temp);
+                                    Simulator::ScheduleNow(&RIBAdStore::ForwardAds, this, socket, serialized, dest_socket);
                                 }
                             }
                         }
