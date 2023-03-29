@@ -27,6 +27,9 @@
 
 using namespace ns3;
 
+/* Declaring the utility class to pass compilation */
+class NameDBEntry; 
+
 namespace ns3{
 
     class DCServerAdvertiser : public Application
@@ -79,7 +82,7 @@ namespace ns3{
         void SetPacketWindowSize(uint16_t size);
         void SetContext(void *ctx);
         void SendPeers(Ptr<Socket> socket, Address dest);
-        std::unordered_map<std::string, int> db;
+        std::unordered_map<std::string, NameDBEntry*> db;
 
         void *parent_ctx;
     protected:
@@ -89,6 +92,8 @@ namespace ns3{
         void StartApplication() override;
         void StopApplication() override;
         void HandleRead(Ptr<Socket> socket);
+        bool UpdateNameCache(NameDBEntry* entry);
+        void ForwardAds(Ptr<Socket> socket, std::string& content, Address dest);
 
         uint16_t m_port;                 //!< Port on which we listen for incoming packets.
         Ptr<Socket> m_socket;            //!< IPv4 Socket
@@ -184,7 +189,7 @@ class RIB
         Ptr<RIBAdStore> adStore;
         Ptr<RIBLinkStateManager> linkManager;
         Address my_addr;
-        std::unordered_map<std::string, int> *ads;
+        std::unordered_map<std::string, NameDBEntry*> *ads;
         std::set<Address> *liveSwitches;
         std::set<Address> peers;
 
@@ -228,4 +233,25 @@ class DCServer
 
     private:
         ns3::ObjectFactory advertiserFactory;
+};
+
+
+
+/* Util class reprenting a row in the advertisement store db */
+class NameDBEntry
+{
+public:
+    NameDBEntry(std::string& _dc_name, int _r_transitivity, Address& _origin_AS_addr);
+
+    ~NameDBEntry();
+
+    static NameDBEntry* FromAdvertisementStr(std::string& serialized);
+    std::string ToAdvertisementStr();
+
+    std::string dc_name;
+    int r_transitivity;
+    Address origin_AS_addr;
+    // possibly also expire time...
+
+
 };

@@ -152,6 +152,49 @@ namespace ns3
         NS_LOG_INFO("Send status: " << socket->SendTo(p, 0, dest));
     }
 
+
+    /* Return true if the provided entry is in db, false if table not updated */
+    bool
+    RIBAdStore::UpdateNameCache(NameDBEntry* advertised)
+    {
+        bool ret_val = false;
+
+        std::string& dc_name = advertised->dc_name;
+        int r_transitivity = advertised->r_transitivity;
+        Address& origin_AS_addr = advertised->origin_AS_addr;
+        
+        RIB *rib = (RIB *)(this->parent_ctx); // * parent context is the RIB class
+        // store ads if
+        //   1. origin address is current rib's address
+        //   2. no existing entry in db
+        if (origin_AS_addr == rib->my_addr || db.find(dc_name) == db.end()) {
+            db[dc_name] = advertised;
+            ret_val = true;
+        } 
+        // if ads already in db , update to maximize cached r_transitivity
+        else {
+            auto iter = db.find(dc_name);
+            if (iter->second->r_transitivity < r_transitivity) {
+                // need to release previous entry's resource
+                delete db[dc_name]; 
+                db[dc_name] = advertised;
+                ret_val = true;
+            }
+                
+        }
+
+        return ret_val;
+    }
+
+    void
+    RIBAdStore::ForwardAds(Ptr<Socket> socket, std::string& content, Address dest) {
+        // RIB *rib = (RIB *)(this->parent_ctx);
+        
+        Ptr<Packet> p = Create<Packet>((const uint8_t *)content.c_str(), content.size());
+        // ! bug, sending is error
+        NS_LOG_INFO("Forward Ads to " << dest << ". Sent " << socket->SendTo(p, 0, dest));
+    }
+
     void
     RIBAdStore::HandleRead(Ptr<Socket> socket)
     {
@@ -177,22 +220,44 @@ namespace ns3
 
                 // * printout the received packet body
                 NS_LOG_INFO(ad);
-                
+
                 if (ad == "GIVEPEERS"){
                     Simulator::ScheduleNow(&RIBAdStore::SendPeers, this, socket, from);
                 }else{
                     // * deserialize the advertisement packet
-                    Json::Value deserializeRoot;
-                    Json::Reader reader;
-                    if (!reader.parse(ad, deserializeRoot)) {
+                    NameDBEntry* advertised_entry = NameDBEntry::FromAdvertisementStr(ad);
+                    if (advertised_entry == nullptr) {
                         NS_LOG_ERROR("Cannot parse ads: " << ad);
+                        // std::abort();
                         continue;
                     }
-                    std::string content = deserializeRoot.get("dc_name", "empty").asString();
-                    int r_transitivity = deserializeRoot.get("r_transitivity", 1).asInt();
-                    // db.insert(ad);
-                    db[content] = r_transitivity;
+                    bool updated = UpdateNameCache(advertised_entry);
                     NS_LOG_INFO("Number of ads: " << db.size());
+
+                    // if new udpate, broadcast to peers if r_transitivity allows
+                    if (updated) {
+                        RIB *rib = (RIB *)(this->parent_ctx);
+                        // check the r_transitivity before advertise
+                        if (advertised_entry->r_transitivity > 1) {
+                            -- advertised_entry->r_transitivity;
+                            std::string serialized = advertised_entry->ToAdvertisementStr();
+                            // need to add back 1 because the decrease was directly modifying the entry itself
+                            ++ advertised_entry->r_transitivity;
+
+                            for (auto addr : rib->peers) {
+                                //   cases not to forware:
+                                //     1. the destination is what this ads came from
+                                //     2. the destination is the origin AS
+                                //     3. .. 
+                                if (addr != from && addr != advertised_entry->origin_AS_addr) {
+                                    Simulator::ScheduleNow(&RIBAdStore::ForwardAds, this, socket, serialized, addr);
+                                }
+                            }
+                        }
+                    } else {
+                        delete advertised_entry;
+                    }
+
                 }
 
                 uint32_t currentSequenceNumber = seqTs.GetSeq();

@@ -240,6 +240,10 @@ main(int argc, char* argv[])
         Json::Value serializeRoot;
         serializeRoot["dc_name"] = "Shubham Mishra";
         serializeRoot["r_transitivity"] = 2;
+        Ipv4Address origin_AS_addr = Ipv4Address::ConvertFrom(dcs.rib_addr);
+        std::stringstream ss;
+        origin_AS_addr.Print(ss);
+        serializeRoot["origin_AS"] = ss.str();
         // serialize the packet
         Json::StyledWriter writer;
         std::string advertisement = writer.write(serializeRoot);
