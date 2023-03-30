@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <map>
 #include <string>
+#include <cassert>
 
 #define RIBADSTORE_PORT 3001
 #define RIBLSM_PORT 3002

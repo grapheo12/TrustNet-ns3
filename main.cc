@@ -112,7 +112,7 @@ installRIBs(
         Time __gap = Seconds(0);
         Time __duration = Seconds(1);
         ApplicationContainer __app = y->InstallTraceRoute(rib_addrs, addr_map);
-        for (int i = 0; i < __app.GetN(); i++){
+        for (uint32_t i = 0; i < __app.GetN(); i++){
             ApplicationContainer a;
             a.Add(__app.Get(i));
             a.Start(start + __gap);
@@ -241,26 +241,26 @@ main(int argc, char* argv[])
     // * add peers to each RIB
     // assignRandomASPeers(ribs.first);
 
-    for (int i = 0; i < bth.GetNAs(); i++){
-        for (int j = 0; j < bth.GetNLeafNodesForAs(i); j++){
+    for (uint32_t i = 0; i < bth.GetNAs(); i++){
+        for (uint32_t j = 0; j < bth.GetNLeafNodesForAs(i); j++){
             Ptr<Node> node = bth.GetLeafNodeForAs(i, j);
-            for (int k = 0; k < node->GetNDevices(); k++){
+            for (uint32_t k = 0; k < node->GetNDevices(); k++){
                 Ptr<Ipv4> ipv4 = node->GetObject<Ipv4>();
                 Ipv4Address addr = ipv4->GetAddress(k, 0).GetAddress();
                 // Address addr = node->GetDevice(k)->GetAddress();
-                assert(addr_map.find(addr) == addr_map.end());
+                // assert(addr_map.find(addr) == addr_map.end());
                 std::stringstream ss;
                 ss << addr;
                 addr_map[ss.str()] = i;
             }
         }
-        for (int j = 0; j < bth.GetNNodesForAs(i); j++){
+        for (uint32_t j = 0; j < bth.GetNNodesForAs(i); j++){
             Ptr<Node> node = bth.GetNodeForAs(i, j);
-            for (int k = 0; k < node->GetNDevices(); k++){
+            for (uint32_t k = 0; k < node->GetNDevices(); k++){
                 Ptr<Ipv4> ipv4 = node->GetObject<Ipv4>();
                 Ipv4Address addr = ipv4->GetAddress(k, 0).GetAddress();
                 // Address addr = node->GetDevice(k)->GetAddress();
-                assert(addr_map.find(addr) == addr_map.end());
+                // assert(addr_map.find(addr) == addr_map.end());
                 std::stringstream ss;
                 ss << addr;
                 addr_map[ss.str()] = i;

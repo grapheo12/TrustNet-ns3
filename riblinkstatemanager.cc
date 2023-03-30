@@ -142,7 +142,7 @@ namespace ns3
             m_rxTraceWithAddresses(packet, from, localAddress);
             if (packet->GetSize() > 0)
             {
-                uint32_t receivedSize = packet->GetSize();
+                // uint32_t receivedSize = packet->GetSize();
                 SeqTsHeader seqTs;
                 packet->RemoveHeader(seqTs);
                 
