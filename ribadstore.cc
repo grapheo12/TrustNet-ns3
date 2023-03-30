@@ -179,7 +179,7 @@ namespace ns3
                 NS_LOG_INFO(ad);
                 
                 if (ad == "GIVEPEERS"){
-                    Simulator::ScheduleNow(&RIBAdStore::SendPeers, this, socket, from);
+                    SendPeers(socket, from);
                 }else{
                     db.insert(ad);
                     NS_LOG_INFO("Number of ads: " << db.size());

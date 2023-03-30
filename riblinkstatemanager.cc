@@ -131,7 +131,7 @@ namespace ns3
     void
     RIBLinkStateManager::HandleRead(Ptr<Socket> socket)
     {
-        NS_LOG_FUNCTION(this << socket);
+        // NS_LOG_FUNCTION(this << socket);
         Ptr<Packet> packet;
         Address from;
         Address localAddress;
@@ -146,7 +146,7 @@ namespace ns3
                 SeqTsHeader seqTs;
                 packet->RemoveHeader(seqTs);
                 
-                NS_LOG_INFO("Received link state packet: " << seqTs.GetSeq() << " " << seqTs.GetTs());
+                // NS_LOG_INFO("Received link state packet: " << seqTs.GetSeq() << " " << seqTs.GetTs());
 
                 auto nameOfPeer = InetSocketAddress::ConvertFrom(from).GetIpv4(); // TODO: Change to 256 bit name
                 liveSwitches.insert(nameOfPeer);
@@ -155,21 +155,21 @@ namespace ns3
                 uint32_t currentSequenceNumber = seqTs.GetSeq();
                 if (InetSocketAddress::IsMatchingType(from))
                 {
-                    NS_LOG_INFO("TraceDelay: RX " << receivedSize << " bytes from "
-                                                << InetSocketAddress::ConvertFrom(from).GetIpv4()
-                                                << " Sequence Number: " << currentSequenceNumber
-                                                << " Uid: " << packet->GetUid() << " TXtime: "
-                                                << seqTs.GetTs() << " RXtime: " << Simulator::Now()
-                                                << " Delay: " << Simulator::Now() - seqTs.GetTs());
+                    // NS_LOG_INFO("TraceDelay: RX " << receivedSize << " bytes from "
+                                                // << InetSocketAddress::ConvertFrom(from).GetIpv4()
+                                                // << " Sequence Number: " << currentSequenceNumber
+                                                // << " Uid: " << packet->GetUid() << " TXtime: "
+                                                // << seqTs.GetTs() << " RXtime: " << Simulator::Now()
+                                                // << " Delay: " << Simulator::Now() - seqTs.GetTs());
                 }
                 else if (Inet6SocketAddress::IsMatchingType(from))
                 {
-                    NS_LOG_INFO("TraceDelay: RX " << receivedSize << " bytes from "
-                                                << Inet6SocketAddress::ConvertFrom(from).GetIpv6()
-                                                << " Sequence Number: " << currentSequenceNumber
-                                                << " Uid: " << packet->GetUid() << " TXtime: "
-                                                << seqTs.GetTs() << " RXtime: " << Simulator::Now()
-                                                << " Delay: " << Simulator::Now() - seqTs.GetTs());
+                    // NS_LOG_INFO("TraceDelay: RX " << receivedSize << " bytes from "
+                                                // << Inet6SocketAddress::ConvertFrom(from).GetIpv6()
+                                                // << " Sequence Number: " << currentSequenceNumber
+                                                // << " Uid: " << packet->GetUid() << " TXtime: "
+                                                // << seqTs.GetTs() << " RXtime: " << Simulator::Now()
+                                                // << " Delay: " << Simulator::Now() - seqTs.GetTs());
                 }
 
                 m_lossCounter.NotifyReceived(currentSequenceNumber);

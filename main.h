@@ -17,6 +17,8 @@
 #include <vector>
 #include <set>
 #include <cstdlib>
+#include <map>
+#include <string>
 
 #define RIBADSTORE_PORT 3001
 #define RIBLSM_PORT 3002
@@ -186,12 +188,16 @@ class RIB
         std::set<Address> *liveSwitches;
         std::set<Address> peers;
 
-        RIB(Address myAddr);
+        RIB(Address myAddr, std::map<std::string, int> *addr_map);
         ~RIB();
         ApplicationContainer Install(Ptr<Node> node);
         bool AddPeers(std::vector<Address> &addresses);
 
+        ApplicationContainer InstallTraceRoute(const std::vector<Address>& all_ribs_, std::map<std::string, int> *addr_map);
+
     private:
+        std::map<std::string, int> *addr_map_;
+        Ptr<Node> my_node;
         ns3::ObjectFactory adStoreFactory;
         ns3::ObjectFactory linkManagerFactory;
 };
