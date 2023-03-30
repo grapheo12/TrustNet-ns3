@@ -178,14 +178,14 @@ namespace ns3
             ++m_sent;
             m_totalTx += p->GetSize();
     #ifdef NS3_LOG_ENABLE
-            NS_LOG_INFO("TraceDelay TX " << m_size << " bytes to " << m_peerAddressString << " Uid: "
-                                        << p->GetUid() << " Time: " << (Simulator::Now()).As(Time::S));
+            // NS_LOG_INFO("TraceDelay TX " << m_size << " bytes to " << m_peerAddressString << " Uid: "
+                                        // << p->GetUid() << " Time: " << (Simulator::Now()).As(Time::S));
     #endif // NS3_LOG_ENABLE
         }
     #ifdef NS3_LOG_ENABLE
         else
         {
-            NS_LOG_INFO("Error while sending " << m_size << " bytes to " << m_peerAddressString);
+            // NS_LOG_INFO("Error while sending " << m_size << " bytes to " << m_peerAddressString);
         }
     #endif // NS3_LOG_ENABLE
 

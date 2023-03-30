@@ -1,8 +1,13 @@
 #include "main.h"
+#include "ribtraceroute.h"
+#include <fstream>
+#include <sstream>
 
-RIB::RIB(Address myAddr)
+
+RIB::RIB(Address myAddr, std::map<std::string, int> *addr_map)
 {
     my_addr = myAddr;
+    addr_map_ = addr_map;
 }
 
 RIB::~RIB()
@@ -12,6 +17,7 @@ RIB::~RIB()
 
 ApplicationContainer RIB::Install(Ptr<Node> node)
 {
+    my_node = node;
     adStoreFactory.SetTypeId(RIBAdStore::GetTypeId());
     adStore = adStoreFactory.Create<RIBAdStore>();
     adStore->SetAttribute("Port", UintegerValue(RIBADSTORE_PORT));
@@ -41,4 +47,24 @@ bool RIB::AddPeers(std::vector<Address> &addresses)
     }
 
     return true;
+}
+
+ApplicationContainer RIB::InstallTraceRoute(const std::vector<Address>& all_ribs_, std::map<std::string, int> *addr_map)
+{
+    ApplicationContainer trApps;
+    for (auto &x: all_ribs_){
+        if (x == my_addr) continue;
+        RIBTraceRouteHelper trHelper(Ipv4Address::ConvertFrom(x));
+        trApps.Add(trHelper.Install(this, my_node));
+        std::stringstream ss;
+        ss << "traces/";
+        Ipv4Address::ConvertFrom(my_addr).Print(ss);
+        ss << "_";
+        Ipv4Address::ConvertFrom(x).Print(ss);
+        ss << ".trace";
+        Ptr<OutputStreamWrapper> outw = Create<OutputStreamWrapper>(ss.str(), std::ofstream::out);
+        trHelper.PrintTraceRouteAt(my_node, outw, addr_map);
+    }
+
+    return trApps;
 }

@@ -226,7 +226,7 @@ namespace ns3
                 NS_LOG_INFO("" << Ipv4Address::ConvertFrom(rib->my_addr) <<  " received: " << ad);
 
                 if (ad == "GIVEPEERS"){
-                    Simulator::ScheduleNow(&RIBAdStore::SendPeers, this, socket, from);
+                    SendPeers(socket, from);
                 }else{
                     // * deserialize the advertisement packet
                     NameDBEntry* advertised_entry = NameDBEntry::FromAdvertisementStr(ad);
