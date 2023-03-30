@@ -1,9 +1,10 @@
 #include "main.h"
 
-OverlaySwitch::OverlaySwitch(Address myAddr, Address ribAddr)
+OverlaySwitch::OverlaySwitch(int td_num_, Address myAddr, Address ribAddr)
 {
     my_addr = myAddr;
     rib_addr = ribAddr;
+    td_num = td_num_;
 }
 
 OverlaySwitch::~OverlaySwitch()
@@ -22,7 +23,16 @@ OverlaySwitch::Install(Ptr<Node> node)
     pingClient->SetAttribute("PacketSize", UintegerValue(1024));
 
     node->AddApplication(pingClient);
+
+
+    fwdEngFactory.SetTypeId(OverlaySwitchForwardingEngine::GetTypeId());
+    fwdEng = fwdEngFactory.Create<OverlaySwitchForwardingEngine>();
+    fwdEng->td_num = td_num;
+
+    node->AddApplication(fwdEng);
     
-    ApplicationContainer app(pingClient);
+    ApplicationContainer app;
+    app.Add(pingClient);
+    app.Add(fwdEng);
     return app;
 }

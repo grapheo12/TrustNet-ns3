@@ -19,10 +19,13 @@
 #include <cstdlib>
 #include <map>
 #include <string>
+#include <deque>
 
 #define RIBADSTORE_PORT 3001
 #define RIBLSM_PORT 3002
 #define OVERLAY_PING 3003
+#define OVERLAY_FWD 3004
+#define PACKET_MAGIC 0xdeadface
 
 
 using namespace ns3;
@@ -176,6 +179,45 @@ namespace ns3{
         TracedCallback<Ptr<const Packet>, const Address&, const Address&> m_rxTraceWithAddresses;
 
     };
+
+
+    class OverlaySwitchForwardingEngine: public Application
+    {
+    public:
+        static TypeId GetTypeId();
+        OverlaySwitchForwardingEngine();
+        ~OverlaySwitchForwardingEngine() override;
+        uint32_t GetLost() const;
+        uint64_t GetReceived() const;
+        uint16_t GetPacketWindowSize() const;
+        void SetPacketWindowSize(uint16_t size);
+        int td_num;
+
+    protected:
+        void DoDispose() override;
+
+    private:
+        void StartApplication() override;
+        void StopApplication() override;
+        void HandleRead(Ptr<Socket> socket);
+
+        uint16_t m_port;                 //!< Port on which we listen for incoming packets.
+        Ptr<Socket> m_socket;            //!< IPv4 Socket
+        Ptr<Socket> m_socket6;           //!< IPv6 Socket
+        uint64_t m_received;             //!< Number of received packets
+        PacketLossCounter m_lossCounter; //!< Lost packet counter
+
+        /// Callbacks for tracing the packet Rx events
+        TracedCallback<Ptr<const Packet>> m_rxTrace;
+
+        /// Callbacks for tracing the packet Rx events, includes source and destination addresses
+        TracedCallback<Ptr<const Packet>, const Address&, const Address&> m_rxTraceWithAddresses;
+
+        std::deque<Ptr<Packet>> packet_q;
+        std::map<int, std::set<Address>> oswitch_in_other_td;
+
+        void ForwardPacket(Address who, Ptr<Packet> what);
+    };
 }
 
 class RIB
@@ -202,20 +244,25 @@ class RIB
         ns3::ObjectFactory linkManagerFactory;
 };
 
+
+
 class OverlaySwitch
 {
     public:
         Ptr<OverlaySwitchPingClient> pingClient;
+        Ptr<OverlaySwitchForwardingEngine> fwdEng;
         Address my_addr;
         Address rib_addr;
+        int td_num;
 
-        OverlaySwitch(Address myAddr, Address ribAddr);
+        OverlaySwitch(int td_num, Address myAddr, Address ribAddr);
         ~OverlaySwitch();
         ApplicationContainer Install(Ptr<Node> node);
 
     private:
         ns3::ObjectFactory pingClientFactory;
         ns3::ObjectFactory pingServerFactory;
+        ns3::ObjectFactory fwdEngFactory;
 };
 
 class DCServer

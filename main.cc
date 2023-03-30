@@ -133,7 +133,7 @@ installSwitches(
 
     for (uint32_t i = 0; i < nas; i++){
         for (uint32_t j = 0; j < switchAssgn[i].second.GetN(); j++){
-            OverlaySwitch *oswitch = new OverlaySwitch(switchAssgn[i].second.GetAddress(j), serverAssgn[i].second.GetAddress(0));
+            OverlaySwitch *oswitch = new OverlaySwitch(i, switchAssgn[i].second.GetAddress(j), serverAssgn[i].second.GetAddress(0));
             ApplicationContainer oswitchApps(oswitch->Install(switchAssgn[i].first.Get(j)));
 
             oswitches.push_back(oswitch);
@@ -155,7 +155,7 @@ main(int argc, char* argv[])
     LogComponentEnable("RIBLinkStateManager", LOG_LEVEL_ALL);
     LogComponentEnable("DCServerAdvertiser", LOG_LEVEL_ALL);
     LogComponentEnable("OverlaySwitchPingClient", LOG_LEVEL_ALL);
-
+    LogComponentEnable("OverlaySwitchForwardingEngine", LOG_LEVEL_ALL);
 
     LogComponentEnable("TrustNet_Main", LOG_LEVEL_ALL);
 
