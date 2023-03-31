@@ -268,7 +268,7 @@ namespace ns3
                 // * printout the received packet body
                 RIB *rib = (RIB *)(this->parent_ctx);
                 // NS_LOG_INFO("I am ribadstore at " << Ipv4Address::ConvertFrom(rib->my_addr));
-                // NS_LOG_INFO("" << Ipv4Address::ConvertFrom(rib->my_addr) <<  " received: " << ad);
+                NS_LOG_INFO("" << Ipv4Address::ConvertFrom(rib->my_addr) <<  " received: " << ad);
 
                 if (ad == "GIVEPEERS"){
                     SendPeers(socket, from);
@@ -313,7 +313,14 @@ namespace ns3
                                 std::stringstream ss;
                                 my_addr.Print(ss);
                                 NS_LOG_INFO("RIB:" << ss.str() << ". Forward Ads to " << temp);
-                                Simulator::ScheduleNow(&RIBAdStore::ForwardAds, this, socket, serialized, dest_socket);
+                                // introduce arbitrary delay to do the advertisement
+                                // source: https://stackoverflow.com/questions/288739/generate-random-numbers-uniformly-over-an-entire-range
+                                std::random_device rand_dev;
+                                std::mt19937 generator(rand_dev());
+                                std::uniform_int_distribution<int> distr(0, 10);
+
+                                Simulator::Schedule(Seconds(distr(generator)), &RIBAdStore::ForwardAds, this, socket, serialized, dest_socket);
+                                // Simulator::ScheduleNow(&RIBAdStore::ForwardAds, this, socket, serialized, dest_socket);
                             }
                         }
                         
