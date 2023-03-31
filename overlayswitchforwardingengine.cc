@@ -1,4 +1,6 @@
 #include "main.h"
+#include <istream>
+#include <string>
 
 namespace ns3
 {
@@ -114,6 +116,7 @@ namespace ns3
         }
 
         m_socket6->SetRecvCallback(MakeCallback(&OverlaySwitchForwardingEngine::HandleRead, this));
+        Simulator::Schedule(peer_calc_delay, &OverlaySwitchForwardingEngine::PopulatePeers, this);
     }
 
     void
@@ -220,6 +223,132 @@ namespace ns3
             InetSocketAddress(Ipv4Address::ConvertFrom(who), OVERLAY_FWD));
 
         sock->Send(what);
+    }
+
+    void
+    OverlaySwitchForwardingEngine::PopulatePeers()
+    {
+        TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
+
+        givepeers_socket = Socket::CreateSocket(GetNode(), tid);
+        givepeers_socket->Connect(
+            InetSocketAddress(Ipv4Address::ConvertFrom(rib_addr), RIBLSM_PORT));
+        
+        givepeers_socket->SetRecvCallback(MakeCallback(&OverlaySwitchForwardingEngine::HandlePeersCallback, this));
+
+        NS_LOG_INFO("Attempting to access GIVEPEERS API");
+        std::string cmd = "GIVEPEERS";
+        Ptr<Packet> pkt = Create<Packet>((uint8_t *)cmd.c_str(), cmd.size());
+        givepeers_socket->Send(pkt);
+    }
+
+    void
+    OverlaySwitchForwardingEngine::HandlePeersCallback(Ptr<Socket> sock)
+    {
+        Address from;
+        Ptr<Packet> p;
+        while (p = sock->RecvFrom(from)){
+            NS_LOG_INFO("Received Response from: " << from << " Size: " << p->GetSize());
+            if (p->GetSize() > 0){
+                std::stringstream ss;
+                p->CopyData(&ss, p->GetSize());
+                std::string resp = ss.str();
+                std::istringstream iss(resp);
+                while (iss){
+                    int __td_num = -2;
+                    std::string __addr_string = "0.0.0.0";
+                    iss >> __td_num >> __addr_string;
+                    if (__addr_string == "0.0.0.0"){
+                        break;
+                    }
+                    temp_peering_rib_addrs[__td_num] = Ipv4Address(__addr_string.c_str());
+                }
+            }
+
+            for (auto &x: temp_peering_rib_addrs){
+                NS_LOG_INFO("GIVEPEERS Response Entry: " << x.first << " Addr: " << x.second);
+                Simulator::ScheduleNow(&OverlaySwitchForwardingEngine::PopulateSwitches, this, x.first, x.second);
+            }
+
+            
+        }
+    }
+
+    // Slowly entering trailing Callback hell. Save our souls.
+    void
+    OverlaySwitchForwardingEngine::PopulateSwitches(int __td_num, Ipv4Address addr)
+    {
+        TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
+
+        Ptr<Socket> sock = Socket::CreateSocket(GetNode(), tid);
+        sock->Connect(
+            InetSocketAddress(Ipv4Address::ConvertFrom(addr), RIBADSTORE_PORT));
+        
+        sock->SetRecvCallback(MakeCallback(&OverlaySwitchForwardingEngine::HandleSwitchesCallback, this));
+
+        giveswitches_sockets.push_back(sock);
+
+        std::string cmd = "GIVESWITCHES";
+        Ptr<Packet> p = Create<Packet>((uint8_t *)cmd.c_str(), cmd.size());
+        sock->Send(p);
+    }
+
+    void
+    OverlaySwitchForwardingEngine::HandleSwitchesCallback(Ptr<Socket> sock)
+    {
+        Address from;
+        Ptr<Packet> p;
+        while (p = sock->RecvFrom(from)){
+            Ipv4Address __from = InetSocketAddress::ConvertFrom(from).GetIpv4();
+            NS_LOG_INFO("Received GIVESWITCHES Response from: " << __from << " Size: " << p->GetSize());
+            int __td_num = -1;
+            for (auto &x: temp_peering_rib_addrs){
+                if (x.second == __from){
+                    __td_num = x.first;
+                    break;
+                }
+            }
+            if (__td_num == -1){
+                NS_LOG_INFO("Unknown peer, continuing: " << __from);
+                continue;
+            }
+
+            if (p->GetSize() > 0){
+                std::stringstream ss;
+                p->CopyData(&ss, p->GetSize());
+                std::string resp = ss.str();
+
+                NS_LOG_INFO("GIVESWITCHES Response: " << resp);
+                
+                std::istringstream iss(resp);
+                std::set<Address> addr_set;
+
+                while (iss){
+                    std::string addr_str = "0.0.0.0";
+                    iss >> addr_str;
+                    if (addr_str == "0.0.0.0"){
+                        break;
+                    }
+
+                    Ipv4Address addr(addr_str.c_str());
+                    addr_set.insert(addr);
+                }
+
+                if (oswitch_in_other_td.find(__td_num) == oswitch_in_other_td.end()){
+                    oswitch_in_other_td[__td_num] = addr_set;
+                }else{
+                    for (auto &a: addr_set){
+                        oswitch_in_other_td[__td_num].insert(a);
+                    }
+                }
+
+                NS_LOG_INFO("OSwitch in TD: " << td_num << " Other TDs included: " << oswitch_in_other_td.size());
+
+
+            }
+
+        }
+
     }
 
 }

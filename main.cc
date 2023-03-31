@@ -53,31 +53,31 @@ randomNodeAssignment(
     return assgn;
 }
 
-void assignRandomASPeers(const std::vector<RIB *>& ribs) 
-{
-    auto rng = std::default_random_engine {};
-    std::vector<RIB *> queue = ribs; // copies the ribs vector
+// void assignRandomASPeers(const std::vector<RIB *>& ribs) 
+// {
+//     auto rng = std::default_random_engine {};
+//     std::vector<RIB *> queue = ribs; // copies the ribs vector
 
-    for (auto rib = ribs.begin(); rib != ribs.end(); rib++)
-    {
-        // * seeding is turned off so that each run of the program has the same series of random numbers
-        // srand((unsigned) time(NULL)); 
-        int num_peers = rand() % (ribs.size() / 2);
-        std::shuffle(queue.begin(), queue.end(), rng);
+//     for (auto rib = ribs.begin(); rib != ribs.end(); rib++)
+//     {
+//         // * seeding is turned off so that each run of the program has the same series of random numbers
+//         // srand((unsigned) time(NULL)); 
+//         int num_peers = rand() % (ribs.size() / 2);
+//         std::shuffle(queue.begin(), queue.end(), rng);
 
-        std::vector<Address> addresses;
-        for (int i = 0; i < num_peers; i++)
-        {
-            RIB* picked = queue[queue.size()-1-i];
-            Address picked_addr = Address(picked->my_addr);
-            addresses.push_back(picked_addr);
-        }
-        // * add peers for current rib
-        (*rib)->AddPeers(addresses);
+//         std::vector<Address> addresses;
+//         for (int i = 0; i < num_peers; i++)
+//         {
+//             RIB* picked = queue[queue.size()-1-i];
+//             Address picked_addr = Address(picked->my_addr);
+//             addresses.push_back(picked_addr);
+//         }
+//         // * add peers for current rib
+//         (*rib)->AddPeers(addresses);
 
-        NS_LOG_INFO("number of peers for rib " << (*rib)->my_addr << " is " << (*rib)->peers.size());
-    }
-}
+//         NS_LOG_INFO("number of peers for rib " << (*rib)->my_addr << " is " << (*rib)->peers.size());
+//     }
+// }
 
 std::pair<std::vector<RIB *>, ApplicationContainer>
 installRIBs(
@@ -87,8 +87,9 @@ installRIBs(
     std::vector<RIB *> ribs;
     ApplicationContainer apps;
 
-    for (auto& x: serverAssgn){
-        RIB *rib = new RIB(x.second.GetAddress(0), addr_map);
+    for (int i = 0; i < serverAssgn.size(); i++){
+        auto &x = serverAssgn[i];
+        RIB *rib = new RIB(i, x.second.GetAddress(0), addr_map);
         apps.Add(rib->Install(x.first.Get(0)));
         ribs.push_back(rib);
     }
@@ -133,7 +134,9 @@ installSwitches(
 
     for (uint32_t i = 0; i < nas; i++){
         for (uint32_t j = 0; j < switchAssgn[i].second.GetN(); j++){
-            OverlaySwitch *oswitch = new OverlaySwitch(i, switchAssgn[i].second.GetAddress(j), serverAssgn[i].second.GetAddress(0));
+            OverlaySwitch *oswitch = new OverlaySwitch(
+                i, switchAssgn[i].second.GetAddress(j),
+                serverAssgn[i].second.GetAddress(0), Seconds(15.0));
             ApplicationContainer oswitchApps(oswitch->Install(switchAssgn[i].first.Get(j)));
 
             oswitches.push_back(oswitch);

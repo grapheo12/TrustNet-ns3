@@ -43,6 +43,7 @@ namespace ns3
     {
         NS_LOG_FUNCTION(this);
         m_received = 0;
+        parent_ctx = NULL;
     }
 
     RIBLinkStateManager::~RIBLinkStateManager()
@@ -143,14 +144,27 @@ namespace ns3
             if (packet->GetSize() > 0)
             {
                 uint32_t receivedSize = packet->GetSize();
-                SeqTsHeader seqTs;
-                packet->RemoveHeader(seqTs);
-                
-                // NS_LOG_INFO("Received link state packet: " << seqTs.GetSeq() << " " << seqTs.GetTs());
+                std::stringstream ss;
+                packet->CopyData(&ss, packet->GetSize());
+                std::string cmd(ss.str());
+                if (cmd == "GIVEPEERS"){
+                    // Switch wants to know what RIBs are adjacent/peering to me.
+                    SendPeers(socket, from);
+                }
 
                 auto nameOfPeer = InetSocketAddress::ConvertFrom(from).GetIpv4(); // TODO: Change to 256 bit name
                 liveSwitches.insert(nameOfPeer);
+
+                if (cmd == "GIVEPEERS"){
+                    continue;
+                }
+
                 // TODO: Handle timeout
+                SeqTsHeader seqTs;
+                packet->RemoveHeader(seqTs);
+                
+                NS_LOG_INFO("Received link state packet: " << seqTs.GetSeq() << " " << seqTs.GetTs());
+                
 
                 uint32_t currentSequenceNumber = seqTs.GetSeq();
                 if (InetSocketAddress::IsMatchingType(from))
@@ -176,6 +190,32 @@ namespace ns3
                 m_received++;
             }
         }
+    }
+
+    void
+    RIBLinkStateManager::SetContext(void *ctx)
+    {
+        parent_ctx = ctx;
+    }
+
+    void
+    RIBLinkStateManager::SendPeers(Ptr<Socket> socket, Address addr)
+    {
+        RIB *rib = (RIB *)parent_ctx;
+        if (!rib){
+            return;
+        }
+
+        std::stringstream ss;
+        for (auto &addr: rib->peers){
+            ss << addr.first << " " << Ipv4Address::ConvertFrom(addr.second) << " ";
+        }
+
+        std::string resp(ss.str());
+        NS_LOG_INFO("Sending Peers from LinkStateManager: " << resp);
+
+        Ptr<Packet> p = Create<Packet>((const uint8_t *)resp.c_str(), resp.size());
+        NS_LOG_INFO("Send status: " << socket->SendTo(p, 0, addr));
     }
 
 }

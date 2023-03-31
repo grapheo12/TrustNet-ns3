@@ -184,9 +184,11 @@ RIBTraceRoute::StopApplication()
         }
 
     
-        if (parent_ctx){
-            if (all_as.size() == 2){
-                parent_ctx->peers.insert(m_remote);
+        if (parent_ctx && all_as.size() == 2){
+            for (auto &as: all_as){
+                if (as != parent_ctx->td_num){
+                    parent_ctx->peers[as] = m_remote;
+                }
             }
         }
     }

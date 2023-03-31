@@ -137,7 +137,7 @@ namespace ns3
     }
 
     void
-    RIBAdStore::SendPeers(Ptr<Socket> socket, Address dest)
+    RIBAdStore::SendOverlaySwitches(Ptr<Socket> socket, Address dest)
     {
         RIB *rib = (RIB *)(this->parent_ctx); // * parent context is the RIB helper class
         std::cout << "Live switches: " << rib->liveSwitches->size() << std::endl;
@@ -147,7 +147,7 @@ namespace ns3
         }
         std::string resp = ss.str();
 
-        NS_LOG_INFO("Sending GIVEPEERS response: " << resp);
+        NS_LOG_INFO("Sending GIVESWITCHES response: " << resp);
         Ptr<Packet> p = Create<Packet>((const uint8_t *)resp.c_str(), resp.size());
         NS_LOG_INFO("Send status: " << socket->SendTo(p, 0, dest));
     }
@@ -167,10 +167,6 @@ namespace ns3
             if (packet->GetSize() > 0)
             {
                 uint32_t receivedSize = packet->GetSize();
-                SeqTsHeader seqTs;
-                packet->RemoveHeader(seqTs);
-                
-                NS_LOG_INFO("Received packet: " << seqTs.GetSeq() << " " << seqTs.GetTs() << " " << packet->GetSize());
                 std::stringstream ss;
                 packet->CopyData(&ss, packet->GetSize());
                 std::string ad(ss.str());
@@ -178,13 +174,18 @@ namespace ns3
                 // * printout the received packet body
                 NS_LOG_INFO(ad);
                 
-                if (ad == "GIVEPEERS"){
-                    SendPeers(socket, from);
+                if (ad == "GIVESWITCHES"){
+                    SendOverlaySwitches(socket, from);
+                    continue;
                 }else{
                     db.insert(ad);
                     NS_LOG_INFO("Number of ads: " << db.size());
                 }
 
+                SeqTsHeader seqTs;
+                packet->RemoveHeader(seqTs);
+                NS_LOG_INFO("Received packet: " << seqTs.GetSeq() << " " << seqTs.GetTs() << " " << packet->GetSize());
+                
                 uint32_t currentSequenceNumber = seqTs.GetSeq();
                 if (InetSocketAddress::IsMatchingType(from))
                 {

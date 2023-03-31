@@ -1,10 +1,11 @@
 #include "main.h"
 
-OverlaySwitch::OverlaySwitch(int td_num_, Address myAddr, Address ribAddr)
+OverlaySwitch::OverlaySwitch(int td_num_, Address myAddr, Address ribAddr, Time peer_calc_delay_)
 {
     my_addr = myAddr;
     rib_addr = ribAddr;
     td_num = td_num_;
+    peer_calc_delay = peer_calc_delay_;
 }
 
 OverlaySwitch::~OverlaySwitch()
@@ -28,6 +29,8 @@ OverlaySwitch::Install(Ptr<Node> node)
     fwdEngFactory.SetTypeId(OverlaySwitchForwardingEngine::GetTypeId());
     fwdEng = fwdEngFactory.Create<OverlaySwitchForwardingEngine>();
     fwdEng->td_num = td_num;
+    fwdEng->peer_calc_delay = peer_calc_delay;
+    fwdEng->rib_addr = rib_addr;
 
     node->AddApplication(fwdEng);
     

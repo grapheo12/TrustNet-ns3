@@ -19,7 +19,7 @@
 #include <cstdlib>
 #include <map>
 #include <string>
-#include <deque>
+
 
 #define RIBADSTORE_PORT 3001
 #define RIBLSM_PORT 3002
@@ -81,7 +81,7 @@ namespace ns3{
         uint16_t GetPacketWindowSize() const;
         void SetPacketWindowSize(uint16_t size);
         void SetContext(void *ctx);
-        void SendPeers(Ptr<Socket> socket, Address dest);
+        void SendOverlaySwitches(Ptr<Socket> socket, Address dest);
         std::set<std::string> db;
 
         void *parent_ctx;
@@ -155,8 +155,10 @@ namespace ns3{
         uint32_t GetLost() const;
         uint64_t GetReceived() const;
         uint16_t GetPacketWindowSize() const;
+        void SetContext(void *ctx);
         void SetPacketWindowSize(uint16_t size);
-        std::set<Address> liveSwitches;
+        std::set<Ipv4Address> liveSwitches;
+        void *parent_ctx;
 
     protected:
         void DoDispose() override;
@@ -165,6 +167,7 @@ namespace ns3{
         void StartApplication() override;
         void StopApplication() override;
         void HandleRead(Ptr<Socket> socket);
+        void SendPeers(Ptr<Socket> socket, Address addr);
 
         uint16_t m_port;                 //!< Port on which we listen for incoming packets.
         Ptr<Socket> m_socket;            //!< IPv4 Socket
@@ -192,6 +195,8 @@ namespace ns3{
         uint16_t GetPacketWindowSize() const;
         void SetPacketWindowSize(uint16_t size);
         int td_num;
+        Time peer_calc_delay;
+        Address rib_addr;
 
     protected:
         void DoDispose() override;
@@ -213,10 +218,17 @@ namespace ns3{
         /// Callbacks for tracing the packet Rx events, includes source and destination addresses
         TracedCallback<Ptr<const Packet>, const Address&, const Address&> m_rxTraceWithAddresses;
 
-        std::deque<Ptr<Packet>> packet_q;
         std::map<int, std::set<Address>> oswitch_in_other_td;
 
         void ForwardPacket(Address who, Ptr<Packet> what);
+        void PopulatePeers();
+        Ptr<Socket> givepeers_socket;
+        void HandlePeersCallback(Ptr<Socket> sock);
+        std::map<int, Ipv4Address> temp_peering_rib_addrs;
+        void PopulateSwitches(int __td_num, Ipv4Address addr);
+        void HandleSwitchesCallback(Ptr<Socket> sock);
+        std::vector<Ptr<Socket>> giveswitches_sockets;
+
     };
 }
 
@@ -227,13 +239,14 @@ class RIB
         Ptr<RIBLinkStateManager> linkManager;
         Address my_addr;
         std::set<std::string> *ads;
-        std::set<Address> *liveSwitches;
-        std::set<Address> peers;
+        std::set<Ipv4Address> *liveSwitches;
+        std::map<int, Address> peers;
+        int td_num;
 
-        RIB(Address myAddr, std::map<std::string, int> *addr_map);
+        RIB(int td_num, Address myAddr, std::map<std::string, int> *addr_map);
         ~RIB();
         ApplicationContainer Install(Ptr<Node> node);
-        bool AddPeers(std::vector<Address> &addresses);
+        bool AddPeers(std::vector<std::pair<int, Address>> &addresses);
 
         ApplicationContainer InstallTraceRoute(const std::vector<Address>& all_ribs_, std::map<std::string, int> *addr_map);
 
@@ -254,8 +267,9 @@ class OverlaySwitch
         Address my_addr;
         Address rib_addr;
         int td_num;
+        Time peer_calc_delay;
 
-        OverlaySwitch(int td_num, Address myAddr, Address ribAddr);
+        OverlaySwitch(int td_num, Address myAddr, Address ribAddr, Time peer_calc_delay_);
         ~OverlaySwitch();
         ApplicationContainer Install(Ptr<Node> node);
 

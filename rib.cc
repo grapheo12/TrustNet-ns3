@@ -4,10 +4,11 @@
 #include <sstream>
 
 
-RIB::RIB(Address myAddr, std::map<std::string, int> *addr_map)
+RIB::RIB(int td_num_, Address myAddr, std::map<std::string, int> *addr_map)
 {
     my_addr = myAddr;
     addr_map_ = addr_map;
+    td_num = td_num_;
 }
 
 RIB::~RIB()
@@ -30,7 +31,9 @@ ApplicationContainer RIB::Install(Ptr<Node> node)
     node->AddApplication(linkManager);
     this->liveSwitches = &linkManager->liveSwitches;
 
+    linkManager->SetContext((void *)this);
     adStore->SetContext((void *)this);
+    
     ApplicationContainer apps;
     apps.Add(adStore);
     apps.Add(linkManager);
@@ -39,11 +42,11 @@ ApplicationContainer RIB::Install(Ptr<Node> node)
 }
 
 
-bool RIB::AddPeers(std::vector<Address> &addresses)
+bool RIB::AddPeers(std::vector<std::pair<int, Address>> &addresses)
 {
     for (auto a = addresses.begin(); a != addresses.end(); a++) 
     {
-        peers.insert(Address(*a)); // copy and create new address instance
+        peers[a->first] = a->second; // copy and create new address instance
     }
 
     return true;
