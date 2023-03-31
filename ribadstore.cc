@@ -88,6 +88,27 @@ namespace ns3
     void
     RIBAdStore::DoDispose()
     {
+        // printout my ads store
+        RIB *rib = (RIB *)(this->parent_ctx);
+        Ipv4Address my_addr = Ipv4Address::ConvertFrom(rib->my_addr);
+        std::stringstream ss;
+        my_addr.Print(ss);
+        std::string my_addr_str = ss.str();
+
+        for (auto pair : this->db) {
+            for (auto entry_ptr : pair.second) {
+                std::stringstream td_path_str;
+                for (Ipv4Address addr : entry_ptr->td_path) {
+                    std::stringstream ss;
+                    addr.Print(ss);
+                    td_path_str << ss.str() << "->";
+                }
+                std::string result = td_path_str.str();
+                std::string result_trim = result.substr(0, result.size()-2);
+                NS_LOG_INFO("RibStore "<<my_addr_str<<"'s ads store has"<< "\n" <<" Name:" << pair.first << "\n" << "Entry: " << result_trim << "\n");
+            }
+        }
+
         NS_LOG_FUNCTION(this);
         Application::DoDispose();
     }
@@ -123,6 +144,14 @@ namespace ns3
         }
 
         m_socket6->SetRecvCallback(MakeCallback(&RIBAdStore::HandleRead, this));
+
+        Simulator::Schedule(Seconds(13.0), [this]{
+            std::set<Address>& addr = ((RIB *)this->parent_ctx)->peers;
+            for (auto a : addr) {
+                NS_LOG_INFO(">> I am " << Ipv4Address::ConvertFrom(((RIB *)this->parent_ctx)->my_addr) << "peer: " << Ipv4Address::ConvertFrom(a));
+            }
+            });
+
     }
 
     void
@@ -157,10 +186,10 @@ namespace ns3
     bool
     RIBAdStore::UpdateNameCache(NameDBEntry* advertised)
     {
-        bool ret_val = false;
+        bool updated = false;
 
         std::string& dc_name = advertised->dc_name;
-        int r_transitivity = advertised->r_transitivity;
+        
         Ipv4Address origin_AS_addr = advertised->origin_AS_addr;
 
         RIB *rib = (RIB *)(this->parent_ctx); // * parent context is the RIB class
@@ -168,22 +197,38 @@ namespace ns3
         //   1. origin address is current rib's address
         //   2. no existing entry in db
         if (origin_AS_addr == rib->my_addr || db.find(dc_name) == db.end()) {
-            db[dc_name] = advertised;
-            ret_val = true;
-        } 
-        // if ads already in db , update to maximize cached r_transitivity
-        else {
+            db[dc_name] = std::vector<NameDBEntry*>{ advertised };
+            updated = true;
+        } else {
             auto iter = db.find(dc_name);
-            if (iter->second->r_transitivity < r_transitivity) {
-                // need to release previous entry's resource
-                delete db[dc_name]; 
-                db[dc_name] = advertised;
-                ret_val = true;
+
+            // check if advertisement from this origin AS already exist
+            std::vector<NameDBEntry*>& all_ads = db[dc_name];
+            bool already_exist = false;
+            for (auto ad = all_ads.begin(); ad != all_ads.end(); ++iter) {
+                // if it does, update to have shorter path if possible
+                if ((*ad)->origin_AS_addr == advertised->origin_AS_addr) {
+                    already_exist = true;
+
+                    if ((*ad)->td_path.size() > advertised->td_path.size()) {
+                        delete all_ads[ad-all_ads.begin()];
+                        all_ads[ad-all_ads.begin()] = advertised;
+                        updated = true;
+                    }
+
+                    break;
+                }
+            }
+
+            // add to the advertisement vector for this dc name if not seen before
+            if (!already_exist) {
+                all_ads.push_back(advertised);
+                updated = true;
             }
                 
         }
 
-        return ret_val;
+        return updated;
     }
 
     void
@@ -223,44 +268,55 @@ namespace ns3
                 // * printout the received packet body
                 RIB *rib = (RIB *)(this->parent_ctx);
                 // NS_LOG_INFO("I am ribadstore at " << Ipv4Address::ConvertFrom(rib->my_addr));
-                NS_LOG_INFO("" << Ipv4Address::ConvertFrom(rib->my_addr) <<  " received: " << ad);
+                // NS_LOG_INFO("" << Ipv4Address::ConvertFrom(rib->my_addr) <<  " received: " << ad);
 
                 if (ad == "GIVEPEERS"){
                     SendPeers(socket, from);
                 }else{
                     // * deserialize the advertisement packet
                     NameDBEntry* advertised_entry = NameDBEntry::FromAdvertisementStr(ad);
+                    
                     if (advertised_entry == nullptr) {
                         NS_LOG_ERROR("Cannot parse ads: " << ad);
                         // std::abort();
                         continue;
                     }
+
+                    // check if self is already in advertisement path to avoid loop
+                    bool is_loop = false;
+                    Ipv4Address my_addr = Ipv4Address::ConvertFrom(rib->my_addr);
+                    for (auto addr : advertised_entry->td_path) {
+                        if (addr == my_addr) {
+                            is_loop = true;
+                            break;
+                        }
+                    }
+                    if (is_loop) {
+                        NS_LOG_INFO("Detected advertising loop, ignoring current ads...");
+                        continue;
+                    }
                     bool updated = UpdateNameCache(advertised_entry);
                     NS_LOG_INFO("Number of ads: " << db.size());
 
-                    // if new udpate, broadcast to peers if r_transitivity allows
                     if (updated) {
-                        RIB *rib = (RIB *)(this->parent_ctx);
-                        // check the r_transitivity before advertise
-                        if (advertised_entry->r_transitivity > 1) {
-                            -- advertised_entry->r_transitivity;
-                            std::string serialized = advertised_entry->ToAdvertisementStr();
-                            // need to add back 1 because the decrease was directly modifying the entry itself
-                            ++ advertised_entry->r_transitivity;
-
-                            for (auto addr : rib->peers) {
-                                //   cases not to forware:
-                                //     1. the destination is what this ads came from
-                                //     2. the destination is the origin AS
-                                //     3. .. 
-                                Address dest_socket = InetSocketAddress(Ipv4Address::ConvertFrom(addr), RIBADSTORE_PORT);
-                                if (dest_socket != from && addr != advertised_entry->origin_AS_addr) {
-                                    Ipv4Address temp = Ipv4Address::ConvertFrom(addr);
-                                    NS_LOG_INFO("Forward Ads to " << temp);
-                                    Simulator::ScheduleNow(&RIBAdStore::ForwardAds, this, socket, serialized, dest_socket);
-                                }
+                        // add itself to the td_path of the advertisement
+                        advertised_entry->td_path.push_back(my_addr);
+                        std::string serialized = advertised_entry->ToAdvertisementStr();
+                        for (auto addr : rib->peers) {
+                            //   cases not to forware:
+                            //     1. the destination is what this ads came from
+                            //     2. the destination is the origin AS
+                            //     3. .. 
+                            Address dest_socket = InetSocketAddress(Ipv4Address::ConvertFrom(addr), RIBADSTORE_PORT);
+                            if (dest_socket != from && addr != advertised_entry->origin_AS_addr) {
+                                Ipv4Address temp = Ipv4Address::ConvertFrom(addr);
+                                std::stringstream ss;
+                                my_addr.Print(ss);
+                                NS_LOG_INFO("RIB:" << ss.str() << ". Forward Ads to " << temp);
+                                Simulator::ScheduleNow(&RIBAdStore::ForwardAds, this, socket, serialized, dest_socket);
                             }
                         }
+                        
                     } else {
                         delete advertised_entry;
                     }

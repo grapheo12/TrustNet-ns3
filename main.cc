@@ -89,6 +89,21 @@ void assignRandomASPeers(const std::vector<RIB *>& ribs)
     }
 }
 
+std::string gen_random(const int len) {
+    static const char alphanum[] =
+        "0123456789"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz";
+    std::string tmp_s;
+    tmp_s.reserve(len);
+
+    for (int i = 0; i < len; ++i) {
+        tmp_s += alphanum[rand() % (sizeof(alphanum) - 1)];
+    }
+    
+    return tmp_s;
+}
+
 std::pair<std::vector<RIB *>, ApplicationContainer>
 installRIBs(
     std::vector<std::pair<NodeContainer, Ipv4InterfaceContainer>>& serverAssgn,
@@ -285,8 +300,8 @@ main(int argc, char* argv[])
     for (int i = 0; i < 10; i++){
         // creat advertisement packet
         Json::Value serializeRoot;
-        serializeRoot["dc_name"] = "Shubham Mishra";
-        serializeRoot["r_transitivity"] = 2;
+        serializeRoot["dc_name"] = gen_random(256);
+        
         Ipv4Address origin_AS_addr = Ipv4Address::ConvertFrom(dcs.rib_addr);
         std::stringstream ss;
         origin_AS_addr.Print(ss);
@@ -298,8 +313,8 @@ main(int argc, char* argv[])
         dcs.advertiser->dcNameList.push_back(advertisement);
     }
 
-    clientApps.Start(Seconds(4.0));
-    clientApps.Stop(Seconds(15.0));
+    clientApps.Start(Seconds(13.0));
+    clientApps.Stop(Seconds(600.0));
 
     auto switches = installSwitches(switchAssgn, serverAssgn, Seconds(0.9), Seconds(15.0));
 

@@ -85,7 +85,7 @@ namespace ns3{
         void SetPacketWindowSize(uint16_t size);
         void SetContext(void *ctx);
         void SendPeers(Ptr<Socket> socket, Address dest);
-        std::unordered_map<std::string, NameDBEntry*> db;
+        std::unordered_map<std::string, std::vector<NameDBEntry*>> db;
 
         void *parent_ctx;
     protected:
@@ -103,7 +103,6 @@ namespace ns3{
         Ptr<Socket> m_socket6;           //!< IPv6 Socket
         uint64_t m_received;             //!< Number of received packets
         PacketLossCounter m_lossCounter; //!< Lost packet counter
-
         /// Callbacks for tracing the packet Rx events
         TracedCallback<Ptr<const Packet>> m_rxTrace;
 
@@ -192,7 +191,7 @@ class RIB
         Ptr<RIBAdStore> adStore;
         Ptr<RIBLinkStateManager> linkManager;
         Address my_addr;
-        std::unordered_map<std::string, NameDBEntry*> *ads;
+        std::unordered_map<std::string, std::vector<NameDBEntry*>> *ads;
         std::set<Address> *liveSwitches;
         std::set<Address> peers;
 
@@ -248,7 +247,7 @@ class DCServer
 class NameDBEntry
 {
 public:
-    NameDBEntry(std::string& _dc_name, int _r_transitivity, Ipv4Address& _origin_AS_addr);
+    NameDBEntry(std::string& _dc_name, Ipv4Address& _origin_AS_addr, std::string& _td_path);
 
     ~NameDBEntry();
 
@@ -256,8 +255,9 @@ public:
     std::string ToAdvertisementStr();
 
     std::string dc_name;
-    int r_transitivity;
     Ipv4Address origin_AS_addr;
+    std::vector<Ipv4Address> td_path;
+
     // possibly also expire time...
 
 
