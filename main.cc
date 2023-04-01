@@ -8,6 +8,20 @@
 #define SWITCH_SUBNET   "8.0.0.0"
 #define COMMON_MASK     "255.255.255.0"
 
+#define BUILD_P2P(name, as, addr)    NodeContainer name;\
+name.Create(1);\
+stack.Install(name);\
+int numLeafNodesInAs##as = bth.GetNLeafNodesForAs((as));\
+name.Add(bth.GetLeafNodeForAs((as), numLeafNodesInAs##as - 1));\
+p2p.SetDeviceAttribute("DataRate", StringValue("5Mbps"));\
+p2p.SetChannelAttribute("Delay", StringValue("2ms"));\
+NetDeviceContainer p2p##name##Devices;\
+p2p##name##Devices = p2p.Install(name);\
+address.SetBase(addr, "255.255.0.0");\
+Ipv4InterfaceContainer name##Interfaces;\
+name##Interfaces = address.Assign(p2p##name##Devices);
+
+
 NS_LOG_COMPONENT_DEFINE("TrustNet_Main");
 
 std::vector<std::pair<NodeContainer, Ipv4InterfaceContainer>>   // AS => NodeContainer, Interface of servers
@@ -159,7 +173,7 @@ main(int argc, char* argv[])
     LogComponentEnable("DCServerAdvertiser", LOG_LEVEL_ALL);
     LogComponentEnable("OverlaySwitchPingClient", LOG_LEVEL_ALL);
     LogComponentEnable("OverlaySwitchForwardingEngine", LOG_LEVEL_ALL);
-
+    LogComponentEnable("DummyClient", LOG_LEVEL_ALL);
     LogComponentEnable("TrustNet_Main", LOG_LEVEL_ALL);
 
     // BRITE needs a configuration file to build its graph. By default, this
@@ -201,23 +215,9 @@ main(int argc, char* argv[])
     NS_LOG_INFO("Number of AS created " << bth.GetNAs());
     std::map<std::string, int> addr_map;
 
-    NodeContainer client;
+    BUILD_P2P(dcStore, 1, "11.1.0.0")
 
-    client.Create(1);
-    stack.Install(client);
-
-    int numLeafNodesInAsNine = bth.GetNLeafNodesForAs(9);
-    client.Add(bth.GetLeafNodeForAs(9, numLeafNodesInAsNine - 1)); // * attach the client to the final leaf of the AS-9 
-
-    p2p.SetDeviceAttribute("DataRate", StringValue("5Mbps"));
-    p2p.SetChannelAttribute("Delay", StringValue("2ms"));
-
-    NetDeviceContainer p2pClientDevices;
-    p2pClientDevices = p2p.Install(client); // * establish a p2p link between the client and the leaf router
-
-    address.SetBase("11.1.0.0", "255.255.0.0"); // ? Why this range? Why does the switch also have a client IP?
-    Ipv4InterfaceContainer clientInterfaces;
-    clientInterfaces = address.Assign(p2pClientDevices); // * assign ipv4 addresses for both endpoints of the p2p link
+    BUILD_P2P(client, 3, "11.2.0.0")
 
     address.SetBase(SERVER_SUBNET, COMMON_MASK); // * 1 server per AS
     auto serverAssgn = randomNodeAssignment(
@@ -229,7 +229,7 @@ main(int argc, char* argv[])
         bth, stack, address, 0.1
     );
 
-    auto ribs = installRIBs(serverAssgn, Seconds(0.5), Seconds(120.0), &addr_map);
+    auto ribs = installRIBs(serverAssgn, Seconds(0.5), Seconds(600.0), &addr_map);
 
     // * add peers to each RIB
     // assignRandomASPeers(ribs.first);
@@ -272,17 +272,30 @@ main(int argc, char* argv[])
     // echoClient->SetAttribute("Interval", TimeValue(Seconds(1.)));
     // echoClient->SetAttribute("PacketSize", UintegerValue(1024));
 
-    DCServer dcs(clientInterfaces.GetAddress(0), ribs.first[3]->my_addr); // ? Why index 3
-    ApplicationContainer clientApps(dcs.Install(client.Get(0)));
+    DCServer dcs(dcStoreInterfaces.GetAddress(0), ribs.first[9]->my_addr); // ? Why index 3
+    ApplicationContainer dcApps(dcs.Install(dcStore.Get(0)));
 
     for (int i = 0; i < 10; i++){
         dcs.advertiser->dcNameList.push_back("Shubham Mishra");
     }
 
-    clientApps.Start(Seconds(4.0));
-    clientApps.Stop(Seconds(15.0));
+    dcApps.Start(Seconds(4.0));
+    dcApps.Stop(Seconds(600.0));
 
-    auto switches = installSwitches(switchAssgn, serverAssgn, Seconds(0.9), Seconds(15.0));
+    auto switches = installSwitches(switchAssgn, serverAssgn, Seconds(0.9), Seconds(600.0));
+
+    ns3::ObjectFactory clientFactory;
+    clientFactory.SetTypeId(DummyClient::GetTypeId());
+    Ptr<DummyClient> dummyClient = clientFactory.Create<DummyClient>();
+    dummyClient->SetRemote(ribs.first[3]->my_addr, RIBADSTORE_PORT);
+    dummyClient->SetAttribute("MaxPackets", UintegerValue(100));
+    dummyClient->SetAttribute("Interval", TimeValue(Seconds(1.)));
+    dummyClient->SetAttribute("PacketSize", UintegerValue(1024));
+    client.Get(0)->AddApplication(dummyClient);
+    ApplicationContainer dummyClientApp(dummyClient);
+
+    dummyClientApp.Start(Seconds(16.0));
+    dummyClientApp.Stop(Seconds(600.0));
 
     if (!nix)
     {

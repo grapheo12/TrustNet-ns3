@@ -131,20 +131,22 @@ namespace ns3
     }
 
 
-    /*************************************
+    /**********************************************
      * Packet format:
      * 
-     * 0        4       8           12             16 
-     * |  Magic | #hops | curr hop  | content size |
-     * |-------------------------------------------|
-     * | hop 0  | hop 1 | hop 2     | ...          |
-     * |-------------------------------------------|
-     * | Hop Signature    (64 bytes)               |
-     * |                                           |
-     * |                                           |
-     * |                                           |
-     * |-------------------------------------------|
-     * | Content .......                           |
+     * 0          4           8           12             16 
+     * |  Magic   | #hops     | curr hop  | content size |
+     * |-------------------------------------------------|
+     * | dest ip  | dest port | hop 0     | hop 1        |
+     * |-------------------------------------------------|
+     * | hop 2    | hop 3     | hop 4     | ...          |
+     * |-------------------------------------------------|
+     * | Hop Signature    (64 bytes)                     |
+     * |                                                 |
+     * |                                                 |
+     * |                                                 |
+     * |-------------------------------------------------|
+     * | Content .......                                 |
     */
     void
     OverlaySwitchForwardingEngine::HandleRead(Ptr<Socket> socket)
@@ -160,16 +162,17 @@ namespace ns3
             m_rxTraceWithAddresses(packet, from, localAddress);
             if (packet->GetSize() > 0)
             {
+                NS_LOG_INFO("Got packet in AS: " << td_num);
                 uint32_t receivedSize = packet->GetSize();
                 SeqTsHeader seqTs;
                 packet->RemoveHeader(seqTs);
                 uint32_t currentSequenceNumber = seqTs.GetSeq();
-
                 if (receivedSize < 16){
+                    NS_LOG_INFO("Got the packet but dropping");
                     continue;
                 }
                 uint32_t *buff = new uint32_t[receivedSize / sizeof(uint32_t) + 2];
-                uint32_t sz = packet->CopyData((uint8_t *)buff, receivedSize / sizeof(uint32_t) + 2);
+                uint32_t sz = packet->CopyData((uint8_t *)buff, receivedSize);
                 if (sz < 16){
                     delete[] buff;
                     continue;
@@ -183,16 +186,23 @@ namespace ns3
                 uint32_t hop_cnt = buff[1];
                 uint32_t curr_hop = buff[2];
                 uint32_t content_sz = buff[3];
-                if (sz < 16 + 4 * hop_cnt + 64 + content_sz){
+                if (sz < 24 + 4 * hop_cnt + 64 + content_sz){
                     delete[] buff;
                     continue;
                 }
-                if (curr_hop >= hop_cnt || buff[curr_hop] != td_num){
+                if (curr_hop >= hop_cnt || buff[6 + curr_hop] != td_num){
                     delete[] buff;
                     continue;
                 }
                 buff[2]++;
-                auto it = oswitch_in_other_td.find(buff[2]);
+                if (buff[2] == hop_cnt){
+                    Ipv4Address final_dest(buff[4]);
+                    uint32_t final_port = buff[5];
+                    NS_LOG_INFO("Last Mile Delivery to: " << final_dest << ":" << final_port);
+                    delete[] buff;
+                    continue;
+                }
+                auto it = oswitch_in_other_td.find(buff[6 + buff[2]]);
                 if (it == oswitch_in_other_td.end() || it->second.size() == 0){
                     delete[] buff;
                     continue;
@@ -200,9 +210,10 @@ namespace ns3
                 Address next_hop_addr = *(it->second.begin());      // TODO: Do round robin here.
 
                 Ptr<Packet> fwdPacket = Create<Packet>((const uint8_t *)buff, sz);
+                fwdPacket->AddHeader(seqTs);
 
-
-                Simulator::ScheduleNow(&OverlaySwitchForwardingEngine::ForwardPacket, this, next_hop_addr, fwdPacket);
+                NS_LOG_INFO("Forwarding to AS: " << buff[6 + buff[2]]);
+                Simulator::ScheduleNow(&OverlaySwitchForwardingEngine::ForwardPacket, this, next_hop_addr, OVERLAY_FWD, fwdPacket);
                 delete[] buff;
                 
 
@@ -214,15 +225,23 @@ namespace ns3
 
 
     void
-    OverlaySwitchForwardingEngine::ForwardPacket(Address who, Ptr<Packet> what)
+    OverlaySwitchForwardingEngine::ForwardPacket(Address who, uint32_t port, Ptr<Packet> what)
     {
-        TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
+        auto it = sock_cache.find(who);
+        Ptr<Socket> __sock = NULL;
+        if (it == sock_cache.end()){
+            TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
 
-        Ptr<Socket> sock = Socket::CreateSocket(GetNode(), tid);
-        sock->Connect(
-            InetSocketAddress(Ipv4Address::ConvertFrom(who), OVERLAY_FWD));
+            Ptr<Socket> sock = Socket::CreateSocket(GetNode(), tid);
+            sock->Connect(
+                InetSocketAddress(Ipv4Address::ConvertFrom(who), port));
 
-        sock->Send(what);
+            sock_cache[who] = sock;
+            __sock = sock;
+        }else{
+            __sock = it->second;
+        }
+        __sock->Send(what);
     }
 
     void

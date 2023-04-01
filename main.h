@@ -220,7 +220,7 @@ namespace ns3{
 
         std::map<int, std::set<Address>> oswitch_in_other_td;
 
-        void ForwardPacket(Address who, Ptr<Packet> what);
+        void ForwardPacket(Address who, uint32_t port, Ptr<Packet> what);
         void PopulatePeers();
         Ptr<Socket> givepeers_socket;
         void HandlePeersCallback(Ptr<Socket> sock);
@@ -228,7 +228,45 @@ namespace ns3{
         void PopulateSwitches(int __td_num, Ipv4Address addr);
         void HandleSwitchesCallback(Ptr<Socket> sock);
         std::vector<Ptr<Socket>> giveswitches_sockets;
+        std::map<Address, Ptr<Socket>> sock_cache;
 
+    };
+
+    class DummyClient: public Application
+    {
+    public:
+        static TypeId GetTypeId();
+        DummyClient();
+        ~DummyClient() override;
+        void SetRemote(Address ip, uint16_t port);
+        void SetRemote(Address addr);
+        uint64_t GetTotalTx() const;
+        std::set<Ipv4Address> switches_in_my_td;
+
+    protected:
+        void DoDispose() override;
+
+    private:
+        void StartApplication() override;
+        void StopApplication() override;
+        void Send();
+        void GetSwitch();
+        void HandleSwitch(Ptr<Socket> sock);
+
+        uint32_t m_count; //!< Maximum number of packets the application will send
+        Time m_interval;  //!< Packet inter-send time
+        uint32_t m_size;  //!< Size of the sent packet (including the SeqTsHeader)
+
+        uint32_t m_sent;       //!< Counter for sent packets
+        uint64_t m_totalTx;    //!< Total bytes sent
+        Ptr<Socket> m_socket;  //!< Socket
+        Ptr<Socket> switch_socket;
+        Address m_peerAddress; //!< Remote peer address
+        uint16_t m_peerPort;   //!< Remote peer port
+        EventId m_sendEvent;   //!< Event to send the next packet
+    #ifdef NS3_LOG_ENABLE
+        std::string m_peerAddressString; //!< Remote peer address string
+    #endif
     };
 }
 
