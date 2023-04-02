@@ -10,15 +10,19 @@
 #include "ns3/network-module.h"
 #include "ns3/nix-vector-helper.h"
 #include "ns3/point-to-point-module.h"
+#include "json/json.h"
 
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
 #include <set>
+#include <unordered_map>
 #include <cstdlib>
 #include <map>
 #include <string>
+#include <cassert>
+#include <random>
 
 
 #define RIBADSTORE_PORT 3001
@@ -29,6 +33,9 @@
 
 
 using namespace ns3;
+
+/* Declaring the utility class to pass compilation */
+class NameDBEntry; 
 
 namespace ns3{
 
@@ -82,7 +89,7 @@ namespace ns3{
         void SetPacketWindowSize(uint16_t size);
         void SetContext(void *ctx);
         void SendOverlaySwitches(Ptr<Socket> socket, Address dest);
-        std::set<std::string> db;
+        std::unordered_map<std::string, std::vector<NameDBEntry*>> db;
 
         void *parent_ctx;
     protected:
@@ -92,13 +99,14 @@ namespace ns3{
         void StartApplication() override;
         void StopApplication() override;
         void HandleRead(Ptr<Socket> socket);
+        bool UpdateNameCache(NameDBEntry* entry);
+        void ForwardAds(Ptr<Socket> socket, std::string& content, Address dest);
 
         uint16_t m_port;                 //!< Port on which we listen for incoming packets.
         Ptr<Socket> m_socket;            //!< IPv4 Socket
         Ptr<Socket> m_socket6;           //!< IPv6 Socket
         uint64_t m_received;             //!< Number of received packets
         PacketLossCounter m_lossCounter; //!< Lost packet counter
-
         /// Callbacks for tracing the packet Rx events
         TracedCallback<Ptr<const Packet>> m_rxTrace;
 
@@ -276,7 +284,8 @@ class RIB
         Ptr<RIBAdStore> adStore;
         Ptr<RIBLinkStateManager> linkManager;
         Address my_addr;
-        std::set<std::string> *ads;
+        
+        std::unordered_map<std::string, std::vector<NameDBEntry*>> *ads;
         std::set<Ipv4Address> *liveSwitches;
         std::map<int, Address> peers;
         int td_num;
@@ -331,4 +340,26 @@ class DCServer
 
     private:
         ns3::ObjectFactory advertiserFactory;
+};
+
+
+
+/* Util class reprenting a row in the advertisement store db */
+class NameDBEntry
+{
+public:
+    NameDBEntry(std::string& _dc_name, Ipv4Address& _origin_AS_addr, std::string& _td_path);
+
+    ~NameDBEntry();
+
+    static NameDBEntry* FromAdvertisementStr(std::string& serialized);
+    std::string ToAdvertisementStr();
+
+    std::string dc_name;
+    Ipv4Address origin_AS_addr;
+    std::vector<Ipv4Address> td_path;
+
+    // possibly also expire time...
+
+
 };

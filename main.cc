@@ -93,6 +93,21 @@ randomNodeAssignment(
 //     }
 // }
 
+std::string gen_random(const int len) {
+    static const char alphanum[] =
+        "0123456789"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz";
+    std::string tmp_s;
+    tmp_s.reserve(len);
+
+    for (int i = 0; i < len; ++i) {
+        tmp_s += alphanum[rand() % (sizeof(alphanum) - 1)];
+    }
+    
+    return tmp_s;
+}
+
 std::pair<std::vector<RIB *>, ApplicationContainer>
 installRIBs(
     std::vector<std::pair<NodeContainer, Ipv4InterfaceContainer>>& serverAssgn,
@@ -276,7 +291,19 @@ main(int argc, char* argv[])
     ApplicationContainer dcApps(dcs.Install(dcStore.Get(0)));
 
     for (int i = 0; i < 10; i++){
-        dcs.advertiser->dcNameList.push_back("Shubham Mishra");
+        // creat advertisement packet
+        Json::Value serializeRoot;
+        serializeRoot["dc_name"] = gen_random(256);
+        
+        Ipv4Address origin_AS_addr = Ipv4Address::ConvertFrom(dcs.rib_addr);
+        std::stringstream ss;
+        origin_AS_addr.Print(ss);
+        serializeRoot["origin_AS"] = ss.str();
+        // serialize the packet
+        Json::StyledWriter writer;
+        std::string advertisement = writer.write(serializeRoot);
+        // add name to the name list to be advertised
+        dcs.advertiser->dcNameList.push_back(advertisement);
     }
 
     dcApps.Start(Seconds(4.0));
