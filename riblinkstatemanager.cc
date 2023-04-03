@@ -43,6 +43,7 @@ namespace ns3
     {
         NS_LOG_FUNCTION(this);
         m_received = 0;
+        parent_ctx = NULL;
     }
 
     RIBLinkStateManager::~RIBLinkStateManager()
@@ -131,7 +132,7 @@ namespace ns3
     void
     RIBLinkStateManager::HandleRead(Ptr<Socket> socket)
     {
-        NS_LOG_FUNCTION(this << socket);
+        // NS_LOG_FUNCTION(this << socket);
         Ptr<Packet> packet;
         Address from;
         Address localAddress;
@@ -142,40 +143,79 @@ namespace ns3
             m_rxTraceWithAddresses(packet, from, localAddress);
             if (packet->GetSize() > 0)
             {
-                uint32_t receivedSize = packet->GetSize();
+                // uint32_t receivedSize = packet->GetSize();
+                std::stringstream ss;
+                packet->CopyData(&ss, packet->GetSize());
+                std::string cmd(ss.str());
+                if (cmd == "GIVEPEERS"){
+                    // Switch wants to know what RIBs are adjacent/peering to me.
+                    SendPeers(socket, from);
+                }
+
+                auto nameOfPeer = InetSocketAddress::ConvertFrom(from).GetIpv4(); // TODO: Change to 256 bit name
+                liveSwitches.insert(nameOfPeer);
+
+                if (cmd == "GIVEPEERS"){
+                    continue;
+                }
+
+                // TODO: Handle timeout
                 SeqTsHeader seqTs;
                 packet->RemoveHeader(seqTs);
                 
                 NS_LOG_INFO("Received link state packet: " << seqTs.GetSeq() << " " << seqTs.GetTs());
-
-                auto nameOfPeer = InetSocketAddress::ConvertFrom(from).GetIpv4(); // TODO: Change to 256 bit name
-                liveSwitches.insert(nameOfPeer);
-                // TODO: Handle timeout
+                
 
                 uint32_t currentSequenceNumber = seqTs.GetSeq();
                 if (InetSocketAddress::IsMatchingType(from))
                 {
-                    NS_LOG_INFO("TraceDelay: RX " << receivedSize << " bytes from "
-                                                << InetSocketAddress::ConvertFrom(from).GetIpv4()
-                                                << " Sequence Number: " << currentSequenceNumber
-                                                << " Uid: " << packet->GetUid() << " TXtime: "
-                                                << seqTs.GetTs() << " RXtime: " << Simulator::Now()
-                                                << " Delay: " << Simulator::Now() - seqTs.GetTs());
+                    // NS_LOG_INFO("TraceDelay: RX " << receivedSize << " bytes from "
+                                                // << InetSocketAddress::ConvertFrom(from).GetIpv4()
+                                                // << " Sequence Number: " << currentSequenceNumber
+                                                // << " Uid: " << packet->GetUid() << " TXtime: "
+                                                // << seqTs.GetTs() << " RXtime: " << Simulator::Now()
+                                                // << " Delay: " << Simulator::Now() - seqTs.GetTs());
                 }
                 else if (Inet6SocketAddress::IsMatchingType(from))
                 {
-                    NS_LOG_INFO("TraceDelay: RX " << receivedSize << " bytes from "
-                                                << Inet6SocketAddress::ConvertFrom(from).GetIpv6()
-                                                << " Sequence Number: " << currentSequenceNumber
-                                                << " Uid: " << packet->GetUid() << " TXtime: "
-                                                << seqTs.GetTs() << " RXtime: " << Simulator::Now()
-                                                << " Delay: " << Simulator::Now() - seqTs.GetTs());
+                    // NS_LOG_INFO("TraceDelay: RX " << receivedSize << " bytes from "
+                                                // << Inet6SocketAddress::ConvertFrom(from).GetIpv6()
+                                                // << " Sequence Number: " << currentSequenceNumber
+                                                // << " Uid: " << packet->GetUid() << " TXtime: "
+                                                // << seqTs.GetTs() << " RXtime: " << Simulator::Now()
+                                                // << " Delay: " << Simulator::Now() - seqTs.GetTs());
                 }
 
                 m_lossCounter.NotifyReceived(currentSequenceNumber);
                 m_received++;
             }
         }
+    }
+
+    void
+    RIBLinkStateManager::SetContext(void *ctx)
+    {
+        parent_ctx = ctx;
+    }
+
+    void
+    RIBLinkStateManager::SendPeers(Ptr<Socket> socket, Address addr)
+    {
+        RIB *rib = (RIB *)parent_ctx;
+        if (!rib){
+            return;
+        }
+
+        std::stringstream ss;
+        for (auto &addr: rib->peers){
+            ss << addr.first << " " << Ipv4Address::ConvertFrom(addr.second) << " ";
+        }
+
+        std::string resp(ss.str());
+        NS_LOG_INFO("Sending Peers from LinkStateManager: " << resp);
+
+        Ptr<Packet> p = Create<Packet>((const uint8_t *)resp.c_str(), resp.size());
+        NS_LOG_INFO("Send status: " << socket->SendTo(p, 0, addr));
     }
 
 }

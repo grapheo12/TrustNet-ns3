@@ -53,7 +53,7 @@ namespace ns3
         m_sendEvent = EventId();
 
         sentNum = 0;
-        dcNameList.push_back("GIVEPEERS");
+        dcNameList.push_back("GIVESWITCHES");
     }
 
     DCServerAdvertiser::~DCServerAdvertiser()

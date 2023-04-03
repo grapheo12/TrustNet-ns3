@@ -8,6 +8,20 @@
 #define SWITCH_SUBNET   "8.0.0.0"
 #define COMMON_MASK     "255.255.255.0"
 
+#define BUILD_P2P(name, as, addr)    NodeContainer name;\
+name.Create(1);\
+stack.Install(name);\
+int numLeafNodesInAs##as = bth.GetNLeafNodesForAs((as));\
+name.Add(bth.GetLeafNodeForAs((as), numLeafNodesInAs##as - 1));\
+p2p.SetDeviceAttribute("DataRate", StringValue("5Mbps"));\
+p2p.SetChannelAttribute("Delay", StringValue("2ms"));\
+NetDeviceContainer p2p##name##Devices;\
+p2p##name##Devices = p2p.Install(name);\
+address.SetBase(addr, "255.255.0.0");\
+Ipv4InterfaceContainer name##Interfaces;\
+name##Interfaces = address.Assign(p2p##name##Devices);
+
+
 NS_LOG_COMPONENT_DEFINE("TrustNet_Main");
 
 std::vector<std::pair<NodeContainer, Ipv4InterfaceContainer>>   // AS => NodeContainer, Interface of servers
@@ -53,44 +67,79 @@ randomNodeAssignment(
     return assgn;
 }
 
-void assignRandomASPeers(const std::vector<RIB *>& ribs) 
-{
-    auto rng = std::default_random_engine {};
-    std::vector<RIB *> queue = ribs; // copies the ribs vector
+// void assignRandomASPeers(const std::vector<RIB *>& ribs) 
+// {
+//     auto rng = std::default_random_engine {};
+//     std::vector<RIB *> queue = ribs; // copies the ribs vector
 
-    for (auto rib = ribs.begin(); rib != ribs.end(); rib++)
-    {
-        // * seeding is turned off so that each run of the program has the same series of random numbers
-        // srand((unsigned) time(NULL)); 
-        int num_peers = rand() % (ribs.size() / 2);
-        std::shuffle(queue.begin(), queue.end(), rng);
+//     for (auto rib = ribs.begin(); rib != ribs.end(); rib++)
+//     {
+//         // * seeding is turned off so that each run of the program has the same series of random numbers
+//         // srand((unsigned) time(NULL)); 
+//         int num_peers = rand() % (ribs.size() / 2);
+//         std::shuffle(queue.begin(), queue.end(), rng);
 
-        std::vector<Address> addresses;
-        for (int i = 0; i < num_peers; i++)
-        {
-            RIB* picked = queue[queue.size()-1-i];
-            Address picked_addr = Address(picked->my_addr);
-            addresses.push_back(picked_addr);
-        }
-        // * add peers for current rib
-        (*rib)->AddPeers(addresses);
+//         std::vector<Address> addresses;
+//         for (int i = 0; i < num_peers; i++)
+//         {
+//             RIB* picked = queue[queue.size()-1-i];
+//             Address picked_addr = Address(picked->my_addr);
+//             addresses.push_back(picked_addr);
+//         }
+//         // * add peers for current rib
+//         (*rib)->AddPeers(addresses);
 
-        NS_LOG_INFO("number of peers for rib " << (*rib)->my_addr << " is " << (*rib)->peers.size());
+//         NS_LOG_INFO("number of peers for rib " << (*rib)->my_addr << " is " << (*rib)->peers.size());
+//     }
+// }
+
+std::string gen_random(const int len) {
+    static const char alphanum[] =
+        "0123456789"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz";
+    std::string tmp_s;
+    tmp_s.reserve(len);
+
+    for (int i = 0; i < len; ++i) {
+        tmp_s += alphanum[rand() % (sizeof(alphanum) - 1)];
     }
+    
+    return tmp_s;
 }
 
 std::pair<std::vector<RIB *>, ApplicationContainer>
 installRIBs(
     std::vector<std::pair<NodeContainer, Ipv4InterfaceContainer>>& serverAssgn,
-    Time start, Time stop)
+    Time start, Time stop, std::map<std::string, int> *addr_map)
 {
     std::vector<RIB *> ribs;
     ApplicationContainer apps;
 
-    for (auto& x: serverAssgn){
-        RIB *rib = new RIB(x.second.GetAddress(0));
+    for (size_t i = 0; i < serverAssgn.size(); i++){
+        auto &x = serverAssgn[i];
+        RIB *rib = new RIB(i, x.second.GetAddress(0), addr_map);
         apps.Add(rib->Install(x.first.Get(0)));
         ribs.push_back(rib);
+    }
+
+    std::vector<Address> rib_addrs;
+    for (auto &y: ribs){
+        rib_addrs.push_back(y->my_addr);
+    }
+
+    for (auto &y: ribs){
+        Time __gap = Seconds(0);
+        Time __duration = Seconds(1);
+        ApplicationContainer __app = y->InstallTraceRoute(rib_addrs, addr_map);
+        for (uint32_t i = 0; i < __app.GetN(); i++){
+            ApplicationContainer a;
+            a.Add(__app.Get(i));
+            a.Start(start + __gap);
+            a.Stop(start + __gap + __duration);
+            __gap += __duration;
+        }
+        // apps.Add(__app);
     }
 
     apps.Start(start);
@@ -101,21 +150,23 @@ installRIBs(
     return ret;
 }
 
-std::pair<std::vector<OverlaySwitch>, ApplicationContainer>
+std::pair<std::vector<OverlaySwitch *>, ApplicationContainer>
 installSwitches(
     std::vector<std::pair<NodeContainer, Ipv4InterfaceContainer>>& switchAssgn,
     std::vector<std::pair<NodeContainer, Ipv4InterfaceContainer>>& serverAssgn,
     Time start, Time stop)
 {
-    std::vector<OverlaySwitch> oswitches;
+    std::vector<OverlaySwitch *> oswitches;
     ApplicationContainer apps;
 
     uint32_t nas = serverAssgn.size();
 
     for (uint32_t i = 0; i < nas; i++){
         for (uint32_t j = 0; j < switchAssgn[i].second.GetN(); j++){
-            OverlaySwitch oswitch(switchAssgn[i].second.GetAddress(j), serverAssgn[i].second.GetAddress(0));
-            ApplicationContainer oswitchApps(oswitch.Install(switchAssgn[i].first.Get(j)));
+            OverlaySwitch *oswitch = new OverlaySwitch(
+                i, switchAssgn[i].second.GetAddress(j),
+                serverAssgn[i].second.GetAddress(0), Seconds(15.0));
+            ApplicationContainer oswitchApps(oswitch->Install(switchAssgn[i].first.Get(j)));
 
             oswitches.push_back(oswitch);
             apps.Add(oswitchApps);
@@ -134,7 +185,10 @@ main(int argc, char* argv[])
 {
     LogComponentEnable("RIBAdStore", LOG_LEVEL_ALL);
     LogComponentEnable("RIBLinkStateManager", LOG_LEVEL_ALL);
-
+    LogComponentEnable("DCServerAdvertiser", LOG_LEVEL_ALL);
+    LogComponentEnable("OverlaySwitchPingClient", LOG_LEVEL_ALL);
+    LogComponentEnable("OverlaySwitchForwardingEngine", LOG_LEVEL_ALL);
+    LogComponentEnable("DummyClient", LOG_LEVEL_ALL);
     LogComponentEnable("TrustNet_Main", LOG_LEVEL_ALL);
 
     // BRITE needs a configuration file to build its graph. By default, this
@@ -174,29 +228,11 @@ main(int argc, char* argv[])
     bth.AssignIpv4Addresses(address);
 
     NS_LOG_INFO("Number of AS created " << bth.GetNAs());
+    std::map<std::string, int> addr_map;
 
-    // The BRITE topology generator generates a topology of routers.  Here we create
-    // two subnetworks which we attach to router leaf nodes generated by BRITE
-    // Any NS3 topology may be used to attach to the BRITE leaf nodes but here we
-    // use just one node
+    BUILD_P2P(dcStore, 1, "11.1.0.0")
 
-    NodeContainer client;
-
-    client.Create(1);
-    stack.Install(client);
-
-    int numLeafNodesInAsNine = bth.GetNLeafNodesForAs(9);
-    client.Add(bth.GetLeafNodeForAs(9, numLeafNodesInAsNine - 1)); // * attach the client to the final leaf of the AS-9 
-
-    p2p.SetDeviceAttribute("DataRate", StringValue("5Mbps"));
-    p2p.SetChannelAttribute("Delay", StringValue("2ms"));
-
-    NetDeviceContainer p2pClientDevices;
-    p2pClientDevices = p2p.Install(client); // * establish a p2p link between the client and the leaf router
-
-    address.SetBase("11.1.0.0", "255.255.0.0"); // ? Why this range? Why does the switch also have a client IP?
-    Ipv4InterfaceContainer clientInterfaces;
-    clientInterfaces = address.Assign(p2pClientDevices); // * assign ipv4 addresses for both endpoints of the p2p link
+    BUILD_P2P(client, 3, "11.2.0.0")
 
     address.SetBase(SERVER_SUBNET, COMMON_MASK); // * 1 server per AS
     auto serverAssgn = randomNodeAssignment(
@@ -208,10 +244,39 @@ main(int argc, char* argv[])
         bth, stack, address, 0.1
     );
 
-    auto ribs = installRIBs(serverAssgn, Seconds(0.5), Seconds(15.0));
+    auto ribs = installRIBs(serverAssgn, Seconds(0.5), Seconds(600.0), &addr_map);
 
     // * add peers to each RIB
-    assignRandomASPeers(ribs.first);
+    // assignRandomASPeers(ribs.first);
+
+    for (uint32_t i = 0; i < bth.GetNAs(); i++){
+        for (uint32_t j = 0; j < bth.GetNLeafNodesForAs(i); j++){
+            Ptr<Node> node = bth.GetLeafNodeForAs(i, j);
+            for (uint32_t k = 0; k < node->GetNDevices(); k++){
+                Ptr<Ipv4> ipv4 = node->GetObject<Ipv4>();
+                Ipv4Address addr = ipv4->GetAddress(k, 0).GetAddress();
+                // Address addr = node->GetDevice(k)->GetAddress();
+                // assert(addr_map.find(addr) == addr_map.end());
+                std::stringstream ss;
+                ss << addr;
+                addr_map[ss.str()] = i;
+            }
+        }
+        for (uint32_t j = 0; j < bth.GetNNodesForAs(i); j++){
+            Ptr<Node> node = bth.GetNodeForAs(i, j);
+            for (uint32_t k = 0; k < node->GetNDevices(); k++){
+                Ptr<Ipv4> ipv4 = node->GetObject<Ipv4>();
+                Ipv4Address addr = ipv4->GetAddress(k, 0).GetAddress();
+                // Address addr = node->GetDevice(k)->GetAddress();
+                // assert(addr_map.find(addr) == addr_map.end());
+                std::stringstream ss;
+                ss << addr;
+                addr_map[ss.str()] = i;
+            }
+            
+        }
+    }
+
 
     // ns3::ObjectFactory fac;
     // fac.SetTypeId(DCServerAdvertiser::GetTypeId());
@@ -222,17 +287,42 @@ main(int argc, char* argv[])
     // echoClient->SetAttribute("Interval", TimeValue(Seconds(1.)));
     // echoClient->SetAttribute("PacketSize", UintegerValue(1024));
 
-    DCServer dcs(clientInterfaces.GetAddress(0), ribs.first[3]->my_addr); // ? Why index 3
-    ApplicationContainer clientApps(dcs.Install(client.Get(0)));
+    DCServer dcs(dcStoreInterfaces.GetAddress(0), ribs.first[9]->my_addr); // ? Why index 3
+    ApplicationContainer dcApps(dcs.Install(dcStore.Get(0)));
 
     for (int i = 0; i < 10; i++){
-        dcs.advertiser->dcNameList.push_back("Shubham Mishra");
+        // creat advertisement packet
+        Json::Value serializeRoot;
+        serializeRoot["dc_name"] = gen_random(256);
+        
+        Ipv4Address origin_AS_addr = Ipv4Address::ConvertFrom(dcs.rib_addr);
+        std::stringstream ss;
+        origin_AS_addr.Print(ss);
+        serializeRoot["origin_AS"] = ss.str();
+        // serialize the packet
+        Json::StyledWriter writer;
+        std::string advertisement = writer.write(serializeRoot);
+        // add name to the name list to be advertised
+        dcs.advertiser->dcNameList.push_back(advertisement);
     }
 
-    clientApps.Start(Seconds(4.0));
-    clientApps.Stop(Seconds(15.0));
+    dcApps.Start(Seconds(13.0));
+    dcApps.Stop(Seconds(600.0));
 
-    auto switches = installSwitches(switchAssgn, serverAssgn, Seconds(0.9), Seconds(15.0));
+    auto switches = installSwitches(switchAssgn, serverAssgn, Seconds(0.9), Seconds(600.0));
+
+    ns3::ObjectFactory clientFactory;
+    clientFactory.SetTypeId(DummyClient::GetTypeId());
+    Ptr<DummyClient> dummyClient = clientFactory.Create<DummyClient>();
+    dummyClient->SetRemote(ribs.first[3]->my_addr, RIBADSTORE_PORT);
+    dummyClient->SetAttribute("MaxPackets", UintegerValue(100));
+    dummyClient->SetAttribute("Interval", TimeValue(Seconds(1.)));
+    dummyClient->SetAttribute("PacketSize", UintegerValue(1024));
+    client.Get(0)->AddApplication(dummyClient);
+    ApplicationContainer dummyClientApp(dummyClient);
+
+    dummyClientApp.Start(Seconds(16.0));
+    dummyClientApp.Stop(Seconds(600.0));
 
     if (!nix)
     {
@@ -245,7 +335,7 @@ main(int argc, char* argv[])
         p2p.EnableAsciiAll(ascii.CreateFileStream("briteLeaves.tr"));
     }
     // Run the simulator
-    Simulator::Stop(Seconds(15.0));
+    Simulator::Stop(Seconds(600.0));
     Simulator::Run();
     Simulator::Destroy();
 
