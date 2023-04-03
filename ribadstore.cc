@@ -256,80 +256,90 @@ namespace ns3
             m_rxTraceWithAddresses(packet, from, localAddress);
             if (packet->GetSize() > 0)
             {
-                uint32_t receivedSize = packet->GetSize();
+                // uint32_t receivedSize = packet->GetSize();
+                // SeqTsHeader seqTs;
+                // packet->RemoveHeader(seqTs);
+
                 std::stringstream ss;
                 packet->CopyData(&ss, packet->GetSize());
                 std::string ad(ss.str());
 
-                // * printout the received packet body
-                RIB *rib = (RIB *)(this->parent_ctx);
-                // NS_LOG_INFO("I am ribadstore at " << Ipv4Address::ConvertFrom(rib->my_addr));
-                NS_LOG_INFO("" << Ipv4Address::ConvertFrom(rib->my_addr) <<  " received: " << ad);
                 
                 if (ad == "GIVESWITCHES"){
                     SendOverlaySwitches(socket, from);
                     continue;
-                }else{
-                    // * deserialize the advertisement packet
-                    NameDBEntry* advertised_entry = NameDBEntry::FromAdvertisementStr(ad);
-                    
-                    if (advertised_entry == nullptr) {
-                        NS_LOG_ERROR("Cannot parse ads: " << ad);
-                        // std::abort();
-                        continue;
-                    }
-
-                    // check if self is already in advertisement path to avoid loop
-                    bool is_loop = false;
-                    Ipv4Address my_addr = Ipv4Address::ConvertFrom(rib->my_addr);
-                    for (auto addr : advertised_entry->td_path) {
-                        if (addr == my_addr) {
-                            is_loop = true;
-                            break;
-                        }
-                    }
-                    if (is_loop) {
-                        NS_LOG_INFO("Detected advertising loop, ignoring current ads...");
-                        continue;
-                    }
-                    bool updated = UpdateNameCache(advertised_entry);
-                    NS_LOG_INFO("Number of ads: " << db.size());
-
-                    if (updated) {
-                        // add itself to the td_path of the advertisement
-                        advertised_entry->td_path.push_back(my_addr);
-                        std::string serialized = advertised_entry->ToAdvertisementStr();
-                        for (auto& [AS_num, addr] : rib->peers) {
-                            //   cases not to forware:
-                            //     1. the destination is what this ads came from
-                            //     2. the destination is the origin AS
-                            //     3. .. 
-                            Address dest_socket = InetSocketAddress(Ipv4Address::ConvertFrom(addr), RIBADSTORE_PORT);
-                            if (dest_socket != from && addr != advertised_entry->origin_AS_addr) {
-                                Ipv4Address temp = Ipv4Address::ConvertFrom(addr);
-                                std::stringstream ss;
-                                my_addr.Print(ss);
-                                NS_LOG_INFO("RIB:" << ss.str() << ". Forward Ads to " << temp);
-                                // introduce arbitrary delay to do the advertisement
-                                // source: https://stackoverflow.com/questions/288739/generate-random-numbers-uniformly-over-an-entire-range
-                                std::random_device rand_dev;
-                                std::mt19937 generator(rand_dev());
-                                std::uniform_int_distribution<int> distr(0, 10);
-
-                                Simulator::Schedule(Seconds(distr(generator)), &RIBAdStore::ForwardAds, this, socket, serialized, dest_socket);
-                                // Simulator::ScheduleNow(&RIBAdStore::ForwardAds, this, socket, serialized, dest_socket);
-                            }
-                        }
-                        
-                    } else {
-                        delete advertised_entry;
-                    }
-
                 }
 
+                uint32_t receivedSize = packet->GetSize();
                 SeqTsHeader seqTs;
                 packet->RemoveHeader(seqTs);
-                NS_LOG_INFO("Received packet: " << seqTs.GetSeq() << " " << seqTs.GetTs() << " " << packet->GetSize());
+
+                ss.str("");
+                ss.clear(); // clear state flags
+                packet->CopyData(&ss, packet->GetSize());
+                ad = ss.str();
+                // * printout the received packet body
+                RIB *rib = (RIB *)(this->parent_ctx);
+                // NS_LOG_INFO("I am ribadstore at " << Ipv4Address::ConvertFrom(rib->my_addr));
+                NS_LOG_INFO("" << Ipv4Address::ConvertFrom(rib->my_addr) <<  " received: " << ad);
+
+                // * deserialize the advertisement packet
+                NameDBEntry* advertised_entry = NameDBEntry::FromAdvertisementStr(ad);
+                
+                if (advertised_entry == nullptr) {
+                    NS_LOG_ERROR("Cannot parse ads: " << ad);
+                    // std::abort();
+                    continue;
+                }
+
+                // check if self is already in advertisement path to avoid loop
+                bool is_loop = false;
+                Ipv4Address my_addr = Ipv4Address::ConvertFrom(rib->my_addr);
+                for (auto addr : advertised_entry->td_path) {
+                    if (addr == my_addr) {
+                        is_loop = true;
+                        break;
+                    }
+                }
+                if (is_loop) {
+                    NS_LOG_INFO("Detected advertising loop, ignoring current ads...");
+                    continue;
+                }
+                bool updated = UpdateNameCache(advertised_entry);
+                NS_LOG_INFO("Number of ads: " << db.size());
+
+                if (updated) {
+                    // add itself to the td_path of the advertisement
+                    advertised_entry->td_path.push_back(my_addr);
+                    std::string serialized = advertised_entry->ToAdvertisementStr();
+                    for (auto& [AS_num, addr] : rib->peers) {
+                        //   cases not to forware:
+                        //     1. the destination is what this ads came from
+                        //     2. the destination is the origin AS
+                        //     3. .. 
+                        Address dest_socket = InetSocketAddress(Ipv4Address::ConvertFrom(addr), RIBADSTORE_PORT);
+                        if (dest_socket != from && addr != advertised_entry->origin_AS_addr) {
+                            Ipv4Address temp = Ipv4Address::ConvertFrom(addr);
+                            std::stringstream ss;
+                            my_addr.Print(ss);
+                            NS_LOG_INFO("RIB:" << ss.str() << ". Forward Ads to " << temp);
+                            // introduce arbitrary delay to do the advertisement
+                            // source: https://stackoverflow.com/questions/288739/generate-random-numbers-uniformly-over-an-entire-range
+                            std::random_device rand_dev;
+                            std::mt19937 generator(rand_dev());
+                            std::uniform_int_distribution<int> distr(0, 10);
+
+                            Simulator::Schedule(Seconds(distr(generator)), &RIBAdStore::ForwardAds, this, socket, serialized, dest_socket);
+                            // Simulator::ScheduleNow(&RIBAdStore::ForwardAds, this, socket, serialized, dest_socket);
+                        }
+                    }
+                    
+                } else {
+                    delete advertised_entry;
+                }
+
+                
+
                 
                 uint32_t currentSequenceNumber = seqTs.GetSeq();
                 if (InetSocketAddress::IsMatchingType(from))

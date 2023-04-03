@@ -143,7 +143,7 @@ namespace ns3
             m_rxTraceWithAddresses(packet, from, localAddress);
             if (packet->GetSize() > 0)
             {
-                uint32_t receivedSize = packet->GetSize();
+                // uint32_t receivedSize = packet->GetSize();
                 std::stringstream ss;
                 packet->CopyData(&ss, packet->GetSize());
                 std::string cmd(ss.str());

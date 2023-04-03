@@ -202,7 +202,7 @@ namespace ns3{
         uint64_t GetReceived() const;
         uint16_t GetPacketWindowSize() const;
         void SetPacketWindowSize(uint16_t size);
-        int td_num;
+        uint32_t td_num;
         Time peer_calc_delay;
         Address rib_addr;
 

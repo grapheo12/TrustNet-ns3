@@ -116,7 +116,7 @@ installRIBs(
     std::vector<RIB *> ribs;
     ApplicationContainer apps;
 
-    for (int i = 0; i < serverAssgn.size(); i++){
+    for (size_t i = 0; i < serverAssgn.size(); i++){
         auto &x = serverAssgn[i];
         RIB *rib = new RIB(i, x.second.GetAddress(0), addr_map);
         apps.Add(rib->Install(x.first.Get(0)));
@@ -306,7 +306,7 @@ main(int argc, char* argv[])
         dcs.advertiser->dcNameList.push_back(advertisement);
     }
 
-    dcApps.Start(Seconds(4.0));
+    dcApps.Start(Seconds(13.0));
     dcApps.Stop(Seconds(600.0));
 
     auto switches = installSwitches(switchAssgn, serverAssgn, Seconds(0.9), Seconds(600.0));
