@@ -1,9 +1,10 @@
 #include "main.h"
 
 
-NameDBEntry::NameDBEntry(std::string& _dc_name, Ipv4Address& _origin_AS_addr, std::string& _td_path) {
+NameDBEntry::NameDBEntry(std::string& _dc_name, Ipv4Address& _origin_AS_addr, std::string& _td_path, Ipv4Address& _origin_server) {
     dc_name = _dc_name;
     origin_AS_addr = _origin_AS_addr;
+    origin_server = _origin_server;
     
     
     // deserialize the td_path to vector
@@ -44,7 +45,8 @@ NameDBEntry* NameDBEntry::FromAdvertisementStr(std::string& serialized) {
     std::string dc_name = deserializeRoot.get("dc_name", "empty").asString();
     std::string td_path = deserializeRoot.get("td_path", "").asString();
     Ipv4Address origin_AS_addr = Ipv4Address(deserializeRoot.get("origin_AS", "123.123.123.123").asString().c_str());
-    return new NameDBEntry(dc_name, origin_AS_addr, td_path);
+    Ipv4Address origin_server = Ipv4Address(deserializeRoot.get("origin_server", "123.123.123.123").asString().c_str());
+    return new NameDBEntry(dc_name, origin_AS_addr, td_path, origin_server);
 }
 
 
@@ -64,6 +66,10 @@ std::string NameDBEntry::ToAdvertisementStr() {
     std::stringstream ss;
     origin_AS_addr.Print(ss);
     serializeRoot["origin_AS"] = ss.str();
+    
+    ss.str(std::string());
+    origin_server.Print(ss);
+    serializeRoot["origin_server"] = ss.str();
     // serialize the packet
     Json::StyledWriter writer;
     return writer.write(serializeRoot);;

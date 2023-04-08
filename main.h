@@ -37,6 +37,10 @@ using namespace ns3;
 /* Declaring the utility class to pass compilation */
 class NameDBEntry; 
 
+/* Global map for mapping AS with their addresses*/
+extern std::map<int, Address> global_AS_to_addr;
+extern std::map<Address, int> global_addr_to_AS;
+
 namespace ns3{
 
     class DCServerAdvertiser : public Application
@@ -89,6 +93,7 @@ namespace ns3{
         void SetPacketWindowSize(uint16_t size);
         void SetContext(void *ctx);
         void SendOverlaySwitches(Ptr<Socket> socket, Address dest);
+        void SendClients(Ptr<Socket> socket, Address dest, std::string name);
         std::unordered_map<std::string, std::vector<NameDBEntry*>> db;
 
         void *parent_ctx;
@@ -276,6 +281,50 @@ namespace ns3{
         std::string m_peerAddressString; //!< Remote peer address string
     #endif
     };
+
+
+    class DummyClient2: public Application
+    {
+    public:
+        static TypeId GetTypeId();
+        DummyClient2();
+        ~DummyClient2() override;
+        void SetRemote(Address ip, uint16_t port);
+        void SetRemote(Address addr);
+        uint64_t GetTotalTx() const;
+        std::set<Ipv4Address> switches_in_my_td;
+        std::set<std::string> dcnames_to_route;
+        std::map<Address, int> peers_to_ASNum;
+
+    protected:
+        void DoDispose() override;
+
+    private:
+        void StartApplication() override;
+        void StopApplication() override;
+        void Send();
+        void SendUsingPath(std::vector<Ipv4Address>& path, Ipv4Address& destination_ip);
+        void GetSwitch();
+        void GetAds();
+        void HandleSwitch(Ptr<Socket> sock);
+
+        uint32_t m_count; //!< Maximum number of packets the application will send
+        Time m_interval;  //!< Packet inter-send time
+        uint32_t m_size;  //!< Size of the sent packet (including the SeqTsHeader)
+
+        uint32_t m_sent;       //!< Counter for sent packets
+        uint64_t m_totalTx;    //!< Total bytes sent
+        Ptr<Socket> m_socket;  //!< Socket
+        Ptr<Socket> switch_socket;
+        Address m_peerAddress; //!< Remote peer address
+        uint16_t m_peerPort;   //!< Remote peer port
+        EventId m_sendEvent;   //!< Event to send the next packet
+        // EventId m_sendEvent2;
+        
+    #ifdef NS3_LOG_ENABLE
+        std::string m_peerAddressString; //!< Remote peer address string
+    #endif
+    };
 }
 
 class RIB
@@ -288,6 +337,7 @@ class RIB
         std::unordered_map<std::string, std::vector<NameDBEntry*>> *ads;
         std::set<Ipv4Address> *liveSwitches;
         std::map<int, Address> peers;
+        std::map<Address, int> peers_to_ASNum;
         int td_num;
 
         RIB(int td_num, Address myAddr, std::map<std::string, int> *addr_map);
@@ -348,7 +398,7 @@ class DCServer
 class NameDBEntry
 {
 public:
-    NameDBEntry(std::string& _dc_name, Ipv4Address& _origin_AS_addr, std::string& _td_path);
+    NameDBEntry(std::string& _dc_name, Ipv4Address& _origin_AS_addr, std::string& _td_path, Ipv4Address&  _origin_server);
 
     ~NameDBEntry();
 
@@ -358,6 +408,7 @@ public:
     std::string dc_name;
     Ipv4Address origin_AS_addr;
     std::vector<Ipv4Address> td_path;
+    Ipv4Address origin_server;
 
     // possibly also expire time...
 

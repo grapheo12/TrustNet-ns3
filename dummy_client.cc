@@ -154,7 +154,7 @@ namespace ns3
 
         m_socket->SetRecvCallback(MakeCallback(&DummyClient::HandleSwitch, this));
         m_socket->SetAllowBroadcast(true);
-        m_sendEvent = Simulator::Schedule(Seconds(0.1), &DummyClient::GetSwitch, this);
+        m_sendEvent = Simulator::Schedule(Seconds(0.1), &DummyClient::GetSwitch, this); // * first fetch local TD's live switches
 
         NS_LOG_INFO("STartkagnljdkgs");
     }
@@ -244,7 +244,7 @@ namespace ns3
         buff[6] = 3;
         buff[7] = 1;
         buff[8] = 2;
-        for (int i = 0; i < 16; i++){
+        for (int i = 0; i < 16; i++){ // * signature is all 0 for dummy client
             buff[9 + i] = 0;
         }
         Ptr<Packet> p = Create<Packet>((uint8_t *)buff, 100); // 8+4 : the size of the seqTs header

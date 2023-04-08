@@ -188,6 +188,9 @@ RIBTraceRoute::StopApplication()
             for (auto &as: all_as){
                 if (as != parent_ctx->td_num){
                     parent_ctx->peers[as] = m_remote;
+                    // setup global mapping between ASes and their addresses
+                    global_addr_to_AS[m_remote] = as;
+                    global_AS_to_addr[as] = m_remote;
                 }
             }
         }

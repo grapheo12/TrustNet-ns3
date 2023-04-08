@@ -24,6 +24,10 @@ name##Interfaces = address.Assign(p2p##name##Devices);
 
 NS_LOG_COMPONENT_DEFINE("TrustNet_Main");
 
+/* Global map for mapping AS with their addresses*/
+std::map<int, Address> global_AS_to_addr = {};
+std::map<Address, int> global_addr_to_AS = {};
+
 std::vector<std::pair<NodeContainer, Ipv4InterfaceContainer>>   // AS => NodeContainer, Interface of servers
 randomNodeAssignment(
     BriteTopologyHelper& bth,
@@ -189,6 +193,7 @@ main(int argc, char* argv[])
     LogComponentEnable("OverlaySwitchPingClient", LOG_LEVEL_ALL);
     LogComponentEnable("OverlaySwitchForwardingEngine", LOG_LEVEL_ALL);
     LogComponentEnable("DummyClient", LOG_LEVEL_ALL);
+    LogComponentEnable("DummyClient2", LOG_LEVEL_ALL);
     LogComponentEnable("TrustNet_Main", LOG_LEVEL_ALL);
 
     // BRITE needs a configuration file to build its graph. By default, this
@@ -290,18 +295,32 @@ main(int argc, char* argv[])
     DCServer dcs(dcStoreInterfaces.GetAddress(0), ribs.first[9]->my_addr); // ? Why index 3
     ApplicationContainer dcApps(dcs.Install(dcStore.Get(0)));
 
+    std::set<std::string> generated_names;
     for (int i = 0; i < 10; i++){
         // creat advertisement packet
         Json::Value serializeRoot;
-        serializeRoot["dc_name"] = gen_random(256);
+        std::string random_str = gen_random(256);
+        generated_names.insert(random_str);
+        serializeRoot["dc_name"] = random_str;
         
         Ipv4Address origin_AS_addr = Ipv4Address::ConvertFrom(dcs.rib_addr);
         std::stringstream ss;
         origin_AS_addr.Print(ss);
         serializeRoot["origin_AS"] = ss.str();
+
+        
+
+        // * add dc server's IP into the serialization because client needs it when sending packets
+        Ipv4Address origin_server_addr = Ipv4Address::ConvertFrom(dcs.my_addr);
+        std::stringstream ss2;
+        origin_server_addr.Print(ss2);
+        serializeRoot["origin_server"] = ss2.str();
+        
+        // NS_LOG_INFO("origin_as is: " << ss.str() << " origin_server is: " << ss2.str());
         // serialize the packet
         Json::StyledWriter writer;
         std::string advertisement = writer.write(serializeRoot);
+        NS_LOG_INFO("advertisement to advertise is: " << advertisement);
         // add name to the name list to be advertised
         dcs.advertiser->dcNameList.push_back(advertisement);
     }
@@ -311,18 +330,41 @@ main(int argc, char* argv[])
 
     auto switches = installSwitches(switchAssgn, serverAssgn, Seconds(0.9), Seconds(600.0));
 
-    ns3::ObjectFactory clientFactory;
-    clientFactory.SetTypeId(DummyClient::GetTypeId());
-    Ptr<DummyClient> dummyClient = clientFactory.Create<DummyClient>();
-    dummyClient->SetRemote(ribs.first[3]->my_addr, RIBADSTORE_PORT);
-    dummyClient->SetAttribute("MaxPackets", UintegerValue(100));
-    dummyClient->SetAttribute("Interval", TimeValue(Seconds(1.)));
-    dummyClient->SetAttribute("PacketSize", UintegerValue(1024));
-    client.Get(0)->AddApplication(dummyClient);
-    ApplicationContainer dummyClientApp(dummyClient);
+    // ns3::ObjectFactory clientFactory;
+    // clientFactory.SetTypeId(DummyClient::GetTypeId());
+    // Ptr<DummyClient> dummyClient = clientFactory.Create<DummyClient>();
+    // dummyClient->SetRemote(ribs.first[3]->my_addr, RIBADSTORE_PORT);
+    // dummyClient->SetAttribute("MaxPackets", UintegerValue(100));
+    // dummyClient->SetAttribute("Interval", TimeValue(Seconds(1.)));
+    // dummyClient->SetAttribute("PacketSize", UintegerValue(1024));
+    // client.Get(0)->AddApplication(dummyClient);
+    // ApplicationContainer dummyClientApp(dummyClient);
 
-    dummyClientApp.Start(Seconds(16.0));
+    // dummyClientApp.Start(Seconds(16.0));
+    // dummyClientApp.Stop(Seconds(600.0));
+
+    ns3::ObjectFactory clientFactory; 
+    clientFactory.SetTypeId(DummyClient2::GetTypeId());
+    Ptr<DummyClient2> dummyClient2 = clientFactory.Create<DummyClient2>();
+    dummyClient2->SetRemote(ribs.first[3]->my_addr, RIBADSTORE_PORT);
+    dummyClient2->SetAttribute("MaxPackets", UintegerValue(100));
+    dummyClient2->SetAttribute("Interval", TimeValue(Seconds(1.)));
+    dummyClient2->SetAttribute("PacketSize", UintegerValue(1024));
+
+    // * set dcnames dummy Client 2 will send message to 
+    dummyClient2->dcnames_to_route = generated_names;
+    for (auto& ref : dummyClient2->dcnames_to_route) {
+        NS_LOG_INFO("DC name dummy client 2 will try to send message: " << ref);
+    }
+    // ! temporary solution for client to know the mapping between IP address and AS number
+    // ! dummy client needs this information because in packet format, it is using AS number instead of IP address
+    
+    client.Get(0)->AddApplication(dummyClient2);
+    ApplicationContainer dummyClientApp(dummyClient2);
+
+    dummyClientApp.Start(Seconds(50.0));
     dummyClientApp.Stop(Seconds(600.0));
+
 
     if (!nix)
     {
