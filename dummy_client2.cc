@@ -209,7 +209,7 @@ namespace ns3
 
                 if (temp.find("ad:") != std::string::npos) {
                     NS_LOG_INFO("Dummy Client2 GIVEADS response: " << temp);
-                    // TODO: parse giveads response
+                    
                     // * deserialize the advertisement packet
                     std::string body = temp.substr(3);
                     NameDBEntry* advertised_entry = NameDBEntry::FromAdvertisementStr(body);
@@ -235,9 +235,11 @@ namespace ns3
                         switch_socket->Connect(
                             InetSocketAddress(chosen, OVERLAY_FWD));
 
-                        Simulator::ScheduleNow(&DummyClient2::SendUsingPath, this, path, origin_server);
                     }
                     
+                    // * Send out the packet
+                    Simulator::ScheduleNow(&DummyClient2::SendUsingPath, this, path, origin_server);
+
                 } else {
                     NS_LOG_INFO("Dummy Client2 GIVESWITCHES response: " << temp);
 
