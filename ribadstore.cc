@@ -181,6 +181,22 @@ namespace ns3
         NS_LOG_INFO("Send status: " << socket->SendTo(p, 0, dest));
     }
 
+    void
+    RIBAdStore::SendClients(Ptr<Socket> socket, Address dest, std::string name) 
+    {
+        NS_LOG_INFO("sent to client the advertisement of " << name); 
+        auto it = db.find(name);
+        
+        if (it == db.end() || it->second.size() == 0) {
+            NS_LOG_ERROR("Cannot find local advertisement of the name: " << name);
+            return;
+        }
+        // TODO: to distinguish which advertisement to send. They could have different origin AS. Currently using the 1st one found
+        std::string str_repr = "ad:" + (it->second[0]->ToAdvertisementStr());
+        Ptr<Packet> p = Create<Packet>((const uint8_t *)str_repr.c_str(), str_repr.size());
+        NS_LOG_INFO("Send to client " << socket->SendTo(p, 0, dest));
+    }
+
 
     /* Return true if the provided entry is in db, false if table not updated */
     bool
@@ -270,6 +286,10 @@ namespace ns3
                     continue;
                 }
 
+                if (ad.substr(0, 7) == "GIVEADS") {
+                    SendClients(socket, from, ad.substr(8)); // Packet Format is "GIVEADS [dc name]", thus start from index 8
+                    continue;
+                }
                 uint32_t receivedSize = packet->GetSize();
                 SeqTsHeader seqTs;
                 packet->RemoveHeader(seqTs);
