@@ -188,12 +188,14 @@ int
 main(int argc, char* argv[])
 {
     LogComponentEnable("RIBAdStore", LOG_LEVEL_ALL);
+    LogComponentEnable("RIBCertStore", LOG_LEVEL_ALL);
     LogComponentEnable("RIBLinkStateManager", LOG_LEVEL_ALL);
     LogComponentEnable("DCServerAdvertiser", LOG_LEVEL_ALL);
     LogComponentEnable("OverlaySwitchPingClient", LOG_LEVEL_ALL);
     LogComponentEnable("OverlaySwitchForwardingEngine", LOG_LEVEL_ALL);
     LogComponentEnable("DummyClient", LOG_LEVEL_ALL);
     LogComponentEnable("DummyClient2", LOG_LEVEL_ALL);
+    LogComponentEnable("DCOwner", LOG_LEVEL_ALL);
     LogComponentEnable("TrustNet_Main", LOG_LEVEL_ALL);
 
     // BRITE needs a configuration file to build its graph. By default, this
@@ -238,6 +240,9 @@ main(int argc, char* argv[])
     BUILD_P2P(dcStore, 1, "11.1.0.0")
 
     BUILD_P2P(client, 3, "11.2.0.0")
+
+    // Same AS as the DCServerAdvertiser below.
+    BUILD_P2P(dcOwner, 9, "11.3.0.0")
 
     address.SetBase(SERVER_SUBNET, COMMON_MASK); // * 1 server per AS
     auto serverAssgn = randomNodeAssignment(
@@ -292,7 +297,17 @@ main(int argc, char* argv[])
     // echoClient->SetAttribute("Interval", TimeValue(Seconds(1.)));
     // echoClient->SetAttribute("PacketSize", UintegerValue(1024));
 
-    DCServer dcs(dcStoreInterfaces.GetAddress(0), ribs.first[9]->my_addr); // ? Why index 3
+
+    ns3::ObjectFactory dcOwnerFactory; 
+    dcOwnerFactory.SetTypeId(DCOwner::GetTypeId());
+    Ptr<DCOwner> dco = dcOwnerFactory.Create<DCOwner>();
+    dco->my_name = "fogrobotics";
+
+    dcOwner.Get(0)->AddApplication(dco);
+    ApplicationContainer dcoApp(dco);
+
+
+    DCServer dcs(dcStoreInterfaces.GetAddress(0), ribs.first[9]->my_addr);
     ApplicationContainer dcApps(dcs.Install(dcStore.Get(0)));
 
     std::set<std::string> generated_names;
@@ -323,9 +338,21 @@ main(int argc, char* argv[])
         NS_LOG_INFO("advertisement to advertise is: " << advertisement);
         // add name to the name list to be advertised
         dcs.advertiser->dcNameList.push_back(advertisement);
+
+        DCOwner::CertInfo cinfo;
+        cinfo.entity = ss2.str();
+        cinfo.type = "trust";
+        cinfo.r_transitivity = 100;
+        cinfo.rib_addr = dcs.rib_addr;
+        cinfo.issuer = random_str;
+        dco->certs_to_send.push_back(cinfo);
     }
 
-    dcApps.Start(Seconds(13.0));
+
+    dcoApp.Start(Seconds(13.0));
+    dcoApp.Stop(Seconds(600.0));
+
+    dcApps.Start(Seconds(30.0));
     dcApps.Stop(Seconds(600.0));
 
     auto switches = installSwitches(switchAssgn, serverAssgn, Seconds(0.9), Seconds(600.0));
