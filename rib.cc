@@ -31,6 +31,10 @@ ApplicationContainer RIB::Install(Ptr<Node> node)
     node->AddApplication(linkManager);
     this->liveSwitches = &linkManager->liveSwitches;
 
+    pathComputerFactory.SetTypeId(RIBPathComputer::GetTypeId());
+    pathComputer = pathComputerFactory.Create<RIBPathComputer>();
+    pathComputer->SetAttribute("Port", UintegerValue(RIBPATHCOMPUTER_PORT));
+    node->AddApplication(pathComputer);
 
     certStoreFactory.SetTypeId(RIBCertStore::GetTypeId());
     certStore = certStoreFactory.Create<RIBCertStore>();
@@ -42,6 +46,7 @@ ApplicationContainer RIB::Install(Ptr<Node> node)
     linkManager->SetContext((void *)this);
     adStore->SetContext((void *)this);
     certStore->SetContext((void *)this);
+    pathComputer->SetContext((void *)this);
     
     ApplicationContainer apps;
     apps.Add(adStore);

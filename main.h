@@ -30,6 +30,7 @@
 #define OVERLAY_PING 3003
 #define OVERLAY_FWD 3004
 #define RIBCERTSTORE_PORT 3005
+#define RIBPATHCOMPUTER_PORT 3006
 #define PACKET_MAGIC 0xdeadface
 
 
@@ -41,6 +42,15 @@ class NameDBEntry;
 /* Global map for mapping AS with their addresses*/
 extern std::map<int, Address> global_AS_to_addr;
 extern std::map<Address, int> global_addr_to_AS;
+
+struct Graph {
+    std::map<std::string, int> nodes_to_id;
+    std::multimap<int, int> trust_edges;          // adjacency list representation
+    std::multimap<int, int> distrust_edges;
+    std::map<std::pair<int, int>, int> transitivity;  // edge -> r_transitivity
+    int __node_cnt;
+};
+
 
 namespace ns3{
 
@@ -213,6 +223,46 @@ namespace ns3{
         void StopApplication() override;
         void HandleRead(Ptr<Socket> socket);
         void SendPeers(Ptr<Socket> socket, Address addr);
+
+        uint16_t m_port;                 //!< Port on which we listen for incoming packets.
+        Ptr<Socket> m_socket;            //!< IPv4 Socket
+        Ptr<Socket> m_socket6;           //!< IPv6 Socket
+        uint64_t m_received;             //!< Number of received packets
+        PacketLossCounter m_lossCounter; //!< Lost packet counter
+
+        /// Callbacks for tracing the packet Rx events
+        TracedCallback<Ptr<const Packet>> m_rxTrace;
+
+        /// Callbacks for tracing the packet Rx events, includes source and destination addresses
+        TracedCallback<Ptr<const Packet>, const Address&, const Address&> m_rxTraceWithAddresses;
+
+    };
+
+    class RIBPathComputer: public Application
+    {
+    public:
+        static TypeId GetTypeId();
+        RIBPathComputer();
+        ~RIBPathComputer() override;
+        uint32_t GetLost() const;
+        uint64_t GetReceived() const;
+        uint16_t GetPacketWindowSize() const;
+        void SetContext(void *ctx);
+        void SetPacketWindowSize(uint16_t size);
+        void *parent_ctx;
+
+        Graph trust_graph;
+
+    protected:
+        void DoDispose() override;
+
+    private:
+        void StartApplication() override;
+        void StopApplication() override;
+        void HandleRead(Ptr<Socket> socket);
+        void ComputeGraph();
+
+
 
         uint16_t m_port;                 //!< Port on which we listen for incoming packets.
         Ptr<Socket> m_socket;            //!< IPv4 Socket
@@ -404,6 +454,7 @@ class RIB
         Ptr<RIBAdStore> adStore;
         Ptr<RIBLinkStateManager> linkManager;
         Ptr<RIBCertStore> certStore;
+        Ptr<RIBPathComputer> pathComputer;
         Address my_addr;
         
         std::unordered_map<std::string, std::vector<NameDBEntry*>> *ads;
@@ -427,6 +478,7 @@ class RIB
         ns3::ObjectFactory adStoreFactory;
         ns3::ObjectFactory linkManagerFactory;
         ns3::ObjectFactory certStoreFactory;
+        ns3::ObjectFactory pathComputerFactory;
 };
 
 

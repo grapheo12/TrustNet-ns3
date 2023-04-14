@@ -190,6 +190,7 @@ main(int argc, char* argv[])
     LogComponentEnable("RIBAdStore", LOG_LEVEL_ALL);
     LogComponentEnable("RIBCertStore", LOG_LEVEL_ALL);
     LogComponentEnable("RIBLinkStateManager", LOG_LEVEL_ALL);
+    LogComponentEnable("RIBPathComputer", LOG_LEVEL_ALL);
     LogComponentEnable("DCServerAdvertiser", LOG_LEVEL_ALL);
     LogComponentEnable("OverlaySwitchPingClient", LOG_LEVEL_ALL);
     LogComponentEnable("OverlaySwitchForwardingEngine", LOG_LEVEL_ALL);
