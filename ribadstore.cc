@@ -290,6 +290,8 @@ namespace ns3
                     SendClients(socket, from, ad.substr(8)); // Packet Format is "GIVEADS [dc name]", thus start from index 8
                     continue;
                 }
+
+                // * Remove header
                 uint32_t receivedSize = packet->GetSize();
                 SeqTsHeader seqTs;
                 packet->RemoveHeader(seqTs);
@@ -305,7 +307,7 @@ namespace ns3
 
                 // * deserialize the advertisement packet
                 NameDBEntry* advertised_entry = NameDBEntry::FromAdvertisementStr(ad);
-                
+
                 if (advertised_entry == nullptr) {
                     NS_LOG_ERROR("Cannot parse ads: " << ad);
                     // std::abort();
@@ -332,25 +334,61 @@ namespace ns3
                     // add itself to the td_path of the advertisement
                     advertised_entry->td_path.push_back(my_addr);
                     std::string serialized = advertised_entry->ToAdvertisementStr();
-                    for (auto& [AS_num, addr] : rib->peers) {
-                        //   cases not to forware:
-                        //     1. the destination is what this ads came from
-                        //     2. the destination is the origin AS
-                        //     3. .. 
-                        Address dest_socket = InetSocketAddress(Ipv4Address::ConvertFrom(addr), RIBADSTORE_PORT);
-                        if (dest_socket != from && addr != advertised_entry->origin_AS_addr) {
-                            Ipv4Address temp = Ipv4Address::ConvertFrom(addr);
-                            std::stringstream ss;
-                            my_addr.Print(ss);
-                            NS_LOG_INFO("RIB:" << ss.str() << ". Forward Ads to " << temp);
-                            // introduce arbitrary delay to do the advertisement
-                            // source: https://stackoverflow.com/questions/288739/generate-random-numbers-uniformly-over-an-entire-range
-                            std::random_device rand_dev;
-                            std::mt19937 generator(rand_dev());
-                            std::uniform_int_distribution<int> distr(0, 10);
 
-                            Simulator::Schedule(Seconds(distr(generator)), &RIBAdStore::ForwardAds, this, socket, serialized, dest_socket);
-                            // Simulator::ScheduleNow(&RIBAdStore::ForwardAds, this, socket, serialized, dest_socket);
+                    // (trust related) if current AS is the origin AS, don't forward if no certificate about 
+                    // the origin server from the data capsule owner
+                    auto& trust_relation_map = rib->certStore->trustRelations;
+
+                    bool trust_curr_AS = false;
+                    bool is_origin_AS_for_curr_ad = advertised_entry->origin_AS_addr == my_addr;
+                    // for (auto it = trust_relation_map.begin(); it != trust_relation_map.end(); it ++) {
+                    //     NS_LOG_INFO("issuer: " << it->first << ", entity: " << it->second.first << ", type: " << it->second.second);
+                    // }
+                    if (is_origin_AS_for_curr_ad) {
+                        auto [range_begin, range_end] = trust_relation_map.equal_range("fogrobotics:" + advertised_entry->dc_name);
+                        for (auto it = range_begin; it != range_end; it++) {
+                            // check if "entity" is the data capsule name
+                            if (Ipv4Address((it->second.first).c_str()) == advertised_entry->origin_server) {
+                                trust_curr_AS = true;
+                                advertised_entry->cert_info.issuer = it->first;
+                                advertised_entry->cert_info.entity = it->second.first;
+                                advertised_entry->cert_info.r_transitivity = it->second.second;
+                                advertised_entry->cert_info.type = "trust";
+                                serialized = advertised_entry->ToAdvertisementStr();
+                                break;
+                            }
+                        }
+                    }
+                    // if is_origin_AS_for_curr_ad, only forward if trust relation exist between DC owner and the DC server in my domain
+                    // otherwise, flooding as usual
+                    if (trust_curr_AS&&is_origin_AS_for_curr_ad) {
+                        NS_LOG_INFO("I am origin AS, trust relationship exist, so forwarding ads to my peer.....");
+                    }
+                    if (!trust_curr_AS&&is_origin_AS_for_curr_ad) {
+                        NS_LOG_INFO("I am origin AS, trust relationship does not exist, thus dropping this advertisement from the DC server advertiser.....");
+                    }
+                    if ((trust_curr_AS&&is_origin_AS_for_curr_ad) || !is_origin_AS_for_curr_ad) {
+                        for (auto& [AS_num, addr] : rib->peers) {
+                            //   cases not to forward:
+                            //     1. the destination is what this ads came from
+                            //     2. the destination is the origin AS
+                            //     3. ...
+                            Address dest_socket = InetSocketAddress(Ipv4Address::ConvertFrom(addr), RIBADSTORE_PORT);   
+                            if (dest_socket != from && addr != advertised_entry->origin_AS_addr) {
+                                
+                                Ipv4Address temp = Ipv4Address::ConvertFrom(addr);
+                                std::stringstream ss;
+                                my_addr.Print(ss);
+                                NS_LOG_INFO("RIB:" << ss.str() << ". Forward Ads to " << temp);
+                                // introduce arbitrary delay to do the advertisement
+                                // source: https://stackoverflow.com/questions/288739/generate-random-numbers-uniformly-over-an-entire-range
+                                std::random_device rand_dev;
+                                std::mt19937 generator(rand_dev());
+                                std::uniform_int_distribution<int> distr(0, 10);
+
+                                Simulator::Schedule(Seconds(distr(generator)), &RIBAdStore::ForwardAds, this, socket, serialized, dest_socket);
+                                // Simulator::ScheduleNow(&RIBAdStore::ForwardAds, this, socket, serialized, dest_socket);
+                            }
                         }
                     }
                     

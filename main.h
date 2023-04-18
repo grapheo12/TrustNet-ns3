@@ -525,7 +525,14 @@ class DCServer
 class NameDBEntry
 {
 public:
-    NameDBEntry(std::string& _dc_name, Ipv4Address& _origin_AS_addr, std::string& _td_path, Ipv4Address&  _origin_server);
+    struct CertInfo {
+        std::string type;
+        std::string entity;
+        std::string issuer;
+        int r_transitivity;
+    };
+
+    NameDBEntry(std::string& _dc_name, Ipv4Address& _origin_AS_addr, std::string& _td_path, Ipv4Address&  _origin_server, CertInfo _cert_info);
 
     ~NameDBEntry();
 
@@ -536,6 +543,7 @@ public:
     Ipv4Address origin_AS_addr;
     std::vector<Ipv4Address> td_path;
     Ipv4Address origin_server;
+    CertInfo cert_info;
 
     // possibly also expire time...
 
