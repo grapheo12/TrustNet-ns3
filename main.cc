@@ -188,12 +188,15 @@ int
 main(int argc, char* argv[])
 {
     LogComponentEnable("RIBAdStore", LOG_LEVEL_ALL);
+    LogComponentEnable("RIBCertStore", LOG_LEVEL_ALL);
     LogComponentEnable("RIBLinkStateManager", LOG_LEVEL_ALL);
+    LogComponentEnable("RIBPathComputer", LOG_LEVEL_ALL);
     LogComponentEnable("DCServerAdvertiser", LOG_LEVEL_ALL);
     LogComponentEnable("OverlaySwitchPingClient", LOG_LEVEL_ALL);
     LogComponentEnable("OverlaySwitchForwardingEngine", LOG_LEVEL_ALL);
     LogComponentEnable("DummyClient", LOG_LEVEL_ALL);
     LogComponentEnable("DummyClient2", LOG_LEVEL_ALL);
+    LogComponentEnable("DCOwner", LOG_LEVEL_ALL);
     LogComponentEnable("TrustNet_Main", LOG_LEVEL_ALL);
 
     // BRITE needs a configuration file to build its graph. By default, this
@@ -232,12 +235,17 @@ main(int argc, char* argv[])
     bth.BuildBriteTopology(stack);
     bth.AssignIpv4Addresses(address);
 
+    
     NS_LOG_INFO("Number of AS created " << bth.GetNAs());
     std::map<std::string, int> addr_map;
 
     BUILD_P2P(dcStore, 1, "11.1.0.0")
 
     BUILD_P2P(client, 3, "11.2.0.0")
+
+    // Same AS as the DCServerAdvertiser below.
+    BUILD_P2P(dcOwner, 9, "11.3.0.0")
+
 
     address.SetBase(SERVER_SUBNET, COMMON_MASK); // * 1 server per AS
     auto serverAssgn = randomNodeAssignment(
@@ -292,7 +300,17 @@ main(int argc, char* argv[])
     // echoClient->SetAttribute("Interval", TimeValue(Seconds(1.)));
     // echoClient->SetAttribute("PacketSize", UintegerValue(1024));
 
-    DCServer dcs(dcStoreInterfaces.GetAddress(0), ribs.first[9]->my_addr); // ? Why index 3
+
+    ns3::ObjectFactory dcOwnerFactory; 
+    dcOwnerFactory.SetTypeId(DCOwner::GetTypeId());
+    Ptr<DCOwner> dco = dcOwnerFactory.Create<DCOwner>();
+    dco->my_name = "fogrobotics";
+
+    dcOwner.Get(0)->AddApplication(dco);
+    ApplicationContainer dcoApp(dco);
+
+
+    DCServer dcs(dcStoreInterfaces.GetAddress(0), ribs.first[9]->my_addr);
     ApplicationContainer dcApps(dcs.Install(dcStore.Get(0)));
 
     std::set<std::string> generated_names;
@@ -323,9 +341,21 @@ main(int argc, char* argv[])
         NS_LOG_INFO("advertisement to advertise is: " << advertisement);
         // add name to the name list to be advertised
         dcs.advertiser->dcNameList.push_back(advertisement);
+
+        DCOwner::CertInfo cinfo;
+        cinfo.entity = ss2.str();
+        cinfo.type = "trust";
+        cinfo.r_transitivity = 100;
+        cinfo.rib_addr = dcs.rib_addr;
+        cinfo.issuer = random_str;
+        dco->certs_to_send.push_back(cinfo);
     }
 
-    dcApps.Start(Seconds(13.0));
+
+    dcoApp.Start(Seconds(13.0));
+    dcoApp.Stop(Seconds(600.0));
+
+    dcApps.Start(Seconds(30.0));
     dcApps.Stop(Seconds(600.0));
 
     auto switches = installSwitches(switchAssgn, serverAssgn, Seconds(0.9), Seconds(600.0));
@@ -364,6 +394,49 @@ main(int argc, char* argv[])
 
     dummyClientApp.Start(Seconds(50.0));
     dummyClientApp.Stop(Seconds(600.0));
+
+
+    MobilityHelper mh;
+    mh.InstallAll();
+    std::default_random_engine rGen;
+    std::normal_distribution<double> rDist(0.0, 10.0);
+
+    for (int i = 0; i < bth.GetNAs(); i++){
+        double asX = 200 * cos(2 * 3.14 * (double)i / bth.GetNAs());
+        double asY = 200 * sin(2 * 3.14 * (double)i / bth.GetNAs());
+        for (int j = 0; j < bth.GetNNodesForAs(i); j++){
+            Ptr<Node> n = bth.GetNodeForAs(i, j);
+            double r = rDist(rGen);
+            double x = asX + r * cos(2 * 3.14 * (double)j / bth.GetNNodesForAs(i));
+            double y = asY + r * sin(2 * 3.14 * (double)j / bth.GetNNodesForAs(i));
+            n->GetObject<MobilityModel>()->SetPosition({x, y, 0});
+        }
+
+        for (int j = 0; j < bth.GetNLeafNodesForAs(i); j++){
+            Ptr<Node> n = bth.GetLeafNodeForAs(i, j);
+            double r = 5 + rDist(rGen);
+            double x = asX + r * cos(2 * 3.14 * (double)j / bth.GetNLeafNodesForAs(i));
+            double y = asY + r * sin(2 * 3.14 * (double)j / bth.GetNLeafNodesForAs(i));
+            n->GetObject<MobilityModel>()->SetPosition({x, y, 0});
+        }
+
+        for (int j = 0; j < switchAssgn[i].first.GetN(); j++){
+            Ptr<Node> n = switchAssgn[i].first.Get(j);
+            double r = 10 + rDist(rGen);
+            double x = asX + r * cos(2 * 3.14 * (double)j / switchAssgn[i].first.GetN());
+            double y = asY + r * sin(2 * 3.14 * (double)j / switchAssgn[i].first.GetN());
+            n->GetObject<MobilityModel>()->SetPosition({x, y, 0});
+        }
+
+        for (int j = 0; j < serverAssgn[i].first.GetN(); j++){
+            Ptr<Node> n = serverAssgn[i].first.Get(j);
+            double r = 10 + rDist(rGen);
+            double x = asX + r * cos(2 * 3.14 * (double)j / serverAssgn[i].first.GetN());
+            double y = asY + r * sin(2 * 3.14 * (double)j / serverAssgn[i].first.GetN());
+            n->GetObject<MobilityModel>()->SetPosition({x, y, 0});
+        }
+    }
+
 
 
     if (!nix)

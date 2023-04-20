@@ -29,6 +29,8 @@
 #define RIBLSM_PORT 3002
 #define OVERLAY_PING 3003
 #define OVERLAY_FWD 3004
+#define RIBCERTSTORE_PORT 3005
+#define RIBPATHCOMPUTER_PORT 3006
 #define PACKET_MAGIC 0xdeadface
 
 
@@ -40,6 +42,15 @@ class NameDBEntry;
 /* Global map for mapping AS with their addresses*/
 extern std::map<int, Address> global_AS_to_addr;
 extern std::map<Address, int> global_addr_to_AS;
+
+struct Graph {
+    std::map<std::string, int> nodes_to_id;
+    std::multimap<int, int> trust_edges;          // adjacency list representation
+    std::multimap<int, int> distrust_edges;
+    std::map<std::pair<int, int>, int> transitivity;  // edge -> r_transitivity
+    int __node_cnt;
+};
+
 
 namespace ns3{
 
@@ -78,6 +89,37 @@ namespace ns3{
     #ifdef NS3_LOG_ENABLE
         std::string m_peerAddressString; //!< Remote peer address string
     #endif                               // NS3_LOG_ENABLE
+    };
+
+
+    // Sends all the certs then dies.
+    class DCOwner: public Application
+    {
+    public:
+        static TypeId GetTypeId();
+        DCOwner();
+        ~DCOwner() override;
+        
+        std::string my_name;            // is_khan? Some Bollywood pun
+
+        struct CertInfo {
+            Address rib_addr;
+            std::string type;
+            std::string entity;
+            std::string issuer;
+            int r_transitivity;
+        };
+
+        std::vector<CertInfo> certs_to_send;
+
+
+    protected:
+        void DoDispose() override;
+
+    private:
+        void StartApplication() override;
+        void StopApplication() override;
+        void Send(Ptr<Socket> sock, CertInfo cinfo);
     };
 
 
@@ -196,6 +238,86 @@ namespace ns3{
 
     };
 
+    class RIBPathComputer: public Application
+    {
+    public:
+        static TypeId GetTypeId();
+        RIBPathComputer();
+        ~RIBPathComputer() override;
+        uint32_t GetLost() const;
+        uint64_t GetReceived() const;
+        uint16_t GetPacketWindowSize() const;
+        void SetContext(void *ctx);
+        void SetPacketWindowSize(uint16_t size);
+        void *parent_ctx;
+
+        Graph trust_graph;
+
+    protected:
+        void DoDispose() override;
+
+    private:
+        void StartApplication() override;
+        void StopApplication() override;
+        void HandleRead(Ptr<Socket> socket);
+        void ComputeGraph();
+
+
+
+        uint16_t m_port;                 //!< Port on which we listen for incoming packets.
+        Ptr<Socket> m_socket;            //!< IPv4 Socket
+        Ptr<Socket> m_socket6;           //!< IPv6 Socket
+        uint64_t m_received;             //!< Number of received packets
+        PacketLossCounter m_lossCounter; //!< Lost packet counter
+
+        /// Callbacks for tracing the packet Rx events
+        TracedCallback<Ptr<const Packet>> m_rxTrace;
+
+        /// Callbacks for tracing the packet Rx events, includes source and destination addresses
+        TracedCallback<Ptr<const Packet>, const Address&, const Address&> m_rxTraceWithAddresses;
+
+    };
+
+    class RIBCertStore: public Application
+    {
+    public:
+        static TypeId GetTypeId();
+        RIBCertStore();
+        ~RIBCertStore() override;
+        uint32_t GetLost() const;
+        uint64_t GetReceived() const;
+        uint16_t GetPacketWindowSize() const;
+        void SetContext(void *ctx);
+        void SetPacketWindowSize(uint16_t size);
+        std::set<Ipv4Address> liveSwitches;
+        void *parent_ctx;
+
+        std::multimap<std::string, std::pair<std::string, int>> trustRelations;
+        std::multimap<std::string, std::string> distrustRelations;
+
+
+    protected:
+        void DoDispose() override;
+
+    private:
+        void StartApplication() override;
+        void StopApplication() override;
+        void HandleRead(Ptr<Socket> socket);
+
+        uint16_t m_port;                 //!< Port on which we listen for incoming packets.
+        Ptr<Socket> m_socket;            //!< IPv4 Socket
+        Ptr<Socket> m_socket6;           //!< IPv6 Socket
+        uint64_t m_received;             //!< Number of received packets
+        PacketLossCounter m_lossCounter; //!< Lost packet counter
+
+
+        /// Callbacks for tracing the packet Rx events
+        TracedCallback<Ptr<const Packet>> m_rxTrace;
+
+        /// Callbacks for tracing the packet Rx events, includes source and destination addresses
+        TracedCallback<Ptr<const Packet>, const Address&, const Address&> m_rxTraceWithAddresses;
+    };
+
 
     class OverlaySwitchForwardingEngine: public Application
     {
@@ -265,7 +387,6 @@ namespace ns3{
         void Send();
         void GetSwitch();
         void HandleSwitch(Ptr<Socket> sock);
-
         uint32_t m_count; //!< Maximum number of packets the application will send
         Time m_interval;  //!< Packet inter-send time
         uint32_t m_size;  //!< Size of the sent packet (including the SeqTsHeader)
@@ -332,10 +453,14 @@ class RIB
     public:
         Ptr<RIBAdStore> adStore;
         Ptr<RIBLinkStateManager> linkManager;
+        Ptr<RIBCertStore> certStore;
+        Ptr<RIBPathComputer> pathComputer;
         Address my_addr;
         
         std::unordered_map<std::string, std::vector<NameDBEntry*>> *ads;
         std::set<Ipv4Address> *liveSwitches;
+        std::multimap<std::string, std::pair<std::string, int>> *trustRelations;
+        std::multimap<std::string, std::string> *distrustRelations;
         std::map<int, Address> peers;
         std::map<Address, int> peers_to_ASNum;
         int td_num;
@@ -352,6 +477,8 @@ class RIB
         Ptr<Node> my_node;
         ns3::ObjectFactory adStoreFactory;
         ns3::ObjectFactory linkManagerFactory;
+        ns3::ObjectFactory certStoreFactory;
+        ns3::ObjectFactory pathComputerFactory;
 };
 
 
@@ -398,7 +525,20 @@ class DCServer
 class NameDBEntry
 {
 public:
-    NameDBEntry(std::string& _dc_name, Ipv4Address& _origin_AS_addr, std::string& _td_path, Ipv4Address&  _origin_server);
+    struct TrustCert {
+        std::string type;
+        std::string entity;
+        std::string issuer;
+        int r_transitivity;
+    };
+
+    struct DistrustCert {
+        std::string type;
+        std::string entity;
+        std::string issuer;
+    };
+
+    NameDBEntry(std::string& _dc_name, Ipv4Address& _origin_AS_addr, std::string& _td_path, Ipv4Address&  _origin_server, TrustCert _trust_cert, std::vector<DistrustCert> _distrust_cert);
 
     ~NameDBEntry();
 
@@ -409,6 +549,8 @@ public:
     Ipv4Address origin_AS_addr;
     std::vector<Ipv4Address> td_path;
     Ipv4Address origin_server;
+    TrustCert trust_cert;
+    std::vector<DistrustCert> distrust_certs;
 
     // possibly also expire time...
 

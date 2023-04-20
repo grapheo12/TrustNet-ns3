@@ -31,12 +31,27 @@ ApplicationContainer RIB::Install(Ptr<Node> node)
     node->AddApplication(linkManager);
     this->liveSwitches = &linkManager->liveSwitches;
 
+    pathComputerFactory.SetTypeId(RIBPathComputer::GetTypeId());
+    pathComputer = pathComputerFactory.Create<RIBPathComputer>();
+    pathComputer->SetAttribute("Port", UintegerValue(RIBPATHCOMPUTER_PORT));
+    node->AddApplication(pathComputer);
+
+    certStoreFactory.SetTypeId(RIBCertStore::GetTypeId());
+    certStore = certStoreFactory.Create<RIBCertStore>();
+    certStore->SetAttribute("Port", UintegerValue(RIBCERTSTORE_PORT));
+    node->AddApplication(certStore);
+    this->trustRelations = &certStore->trustRelations;
+    this->distrustRelations = &certStore->distrustRelations;
+
     linkManager->SetContext((void *)this);
     adStore->SetContext((void *)this);
+    certStore->SetContext((void *)this);
+    pathComputer->SetContext((void *)this);
     
     ApplicationContainer apps;
     apps.Add(adStore);
     apps.Add(linkManager);
+    apps.Add(certStore);
 
     return apps;
 }
