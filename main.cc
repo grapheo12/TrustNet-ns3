@@ -235,6 +235,7 @@ main(int argc, char* argv[])
     bth.BuildBriteTopology(stack);
     bth.AssignIpv4Addresses(address);
 
+    
     NS_LOG_INFO("Number of AS created " << bth.GetNAs());
     std::map<std::string, int> addr_map;
 
@@ -244,6 +245,7 @@ main(int argc, char* argv[])
 
     // Same AS as the DCServerAdvertiser below.
     BUILD_P2P(dcOwner, 9, "11.3.0.0")
+
 
     address.SetBase(SERVER_SUBNET, COMMON_MASK); // * 1 server per AS
     auto serverAssgn = randomNodeAssignment(
@@ -392,6 +394,49 @@ main(int argc, char* argv[])
 
     dummyClientApp.Start(Seconds(50.0));
     dummyClientApp.Stop(Seconds(600.0));
+
+
+    MobilityHelper mh;
+    mh.InstallAll();
+    std::default_random_engine rGen;
+    std::normal_distribution<double> rDist(0.0, 10.0);
+
+    for (int i = 0; i < bth.GetNAs(); i++){
+        double asX = 200 * cos(2 * 3.14 * (double)i / bth.GetNAs());
+        double asY = 200 * sin(2 * 3.14 * (double)i / bth.GetNAs());
+        for (int j = 0; j < bth.GetNNodesForAs(i); j++){
+            Ptr<Node> n = bth.GetNodeForAs(i, j);
+            double r = rDist(rGen);
+            double x = asX + r * cos(2 * 3.14 * (double)j / bth.GetNNodesForAs(i));
+            double y = asY + r * sin(2 * 3.14 * (double)j / bth.GetNNodesForAs(i));
+            n->GetObject<MobilityModel>()->SetPosition({x, y, 0});
+        }
+
+        for (int j = 0; j < bth.GetNLeafNodesForAs(i); j++){
+            Ptr<Node> n = bth.GetLeafNodeForAs(i, j);
+            double r = 5 + rDist(rGen);
+            double x = asX + r * cos(2 * 3.14 * (double)j / bth.GetNLeafNodesForAs(i));
+            double y = asY + r * sin(2 * 3.14 * (double)j / bth.GetNLeafNodesForAs(i));
+            n->GetObject<MobilityModel>()->SetPosition({x, y, 0});
+        }
+
+        for (int j = 0; j < switchAssgn[i].first.GetN(); j++){
+            Ptr<Node> n = switchAssgn[i].first.Get(j);
+            double r = 10 + rDist(rGen);
+            double x = asX + r * cos(2 * 3.14 * (double)j / switchAssgn[i].first.GetN());
+            double y = asY + r * sin(2 * 3.14 * (double)j / switchAssgn[i].first.GetN());
+            n->GetObject<MobilityModel>()->SetPosition({x, y, 0});
+        }
+
+        for (int j = 0; j < serverAssgn[i].first.GetN(); j++){
+            Ptr<Node> n = serverAssgn[i].first.Get(j);
+            double r = 10 + rDist(rGen);
+            double x = asX + r * cos(2 * 3.14 * (double)j / serverAssgn[i].first.GetN());
+            double y = asY + r * sin(2 * 3.14 * (double)j / serverAssgn[i].first.GetN());
+            n->GetObject<MobilityModel>()->SetPosition({x, y, 0});
+        }
+    }
+
 
 
     if (!nix)

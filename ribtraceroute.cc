@@ -189,6 +189,9 @@ RIBTraceRoute::StopApplication()
                 if (as != parent_ctx->td_num){
                     parent_ctx->peers[as] = m_remote;
 
+
+
+
                     std::stringstream asstr;
                     asstr << "AS" << as;
                     parent_ctx->trustRelations->insert(std::make_pair(std::string("me"),
