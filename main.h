@@ -525,14 +525,20 @@ class DCServer
 class NameDBEntry
 {
 public:
-    struct CertInfo {
+    struct TrustCert {
         std::string type;
         std::string entity;
         std::string issuer;
         int r_transitivity;
     };
 
-    NameDBEntry(std::string& _dc_name, Ipv4Address& _origin_AS_addr, std::string& _td_path, Ipv4Address&  _origin_server, CertInfo _cert_info);
+    struct DistrustCert {
+        std::string type;
+        std::string entity;
+        std::string issuer;
+    };
+
+    NameDBEntry(std::string& _dc_name, Ipv4Address& _origin_AS_addr, std::string& _td_path, Ipv4Address&  _origin_server, TrustCert _trust_cert, std::vector<DistrustCert> _distrust_cert);
 
     ~NameDBEntry();
 
@@ -543,7 +549,8 @@ public:
     Ipv4Address origin_AS_addr;
     std::vector<Ipv4Address> td_path;
     Ipv4Address origin_server;
-    CertInfo cert_info;
+    TrustCert trust_cert;
+    std::vector<DistrustCert> distrust_certs;
 
     // possibly also expire time...
 

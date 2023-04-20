@@ -350,10 +350,19 @@ namespace ns3
                             // check if "entity" is the data capsule name
                             if (Ipv4Address((it->second.first).c_str()) == advertised_entry->origin_server) {
                                 trust_curr_AS = true;
-                                advertised_entry->cert_info.issuer = it->first;
-                                advertised_entry->cert_info.entity = it->second.first;
-                                advertised_entry->cert_info.r_transitivity = it->second.second;
-                                advertised_entry->cert_info.type = "trust";
+                                // * Attach trust from DC owner to current name to the advertisement
+                                advertised_entry->trust_cert.issuer = it->first;
+                                advertised_entry->trust_cert.entity = it->second.first;
+                                advertised_entry->trust_cert.r_transitivity = it->second.second;
+                                advertised_entry->trust_cert.type = "trust";
+                                // * Attach distrust relations of the DC owner
+                                auto& distrust_relation_map = rib->certStore->distrustRelations;
+                                auto [range_start, range_stop] = distrust_relation_map.equal_range("fogrobotics:" + advertised_entry->dc_name);
+                                for (auto it = range_start; it != range_stop; ++it) {
+                                    advertised_entry->distrust_certs.push_back(
+                                        NameDBEntry::DistrustCert {"distrust", it->second, it->first}
+                                    );
+                                }
                                 serialized = advertised_entry->ToAdvertisementStr();
                                 break;
                             }
