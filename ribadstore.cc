@@ -376,6 +376,24 @@ namespace ns3
                     if (!trust_curr_AS&&is_origin_AS_for_curr_ad) {
                         NS_LOG_INFO("I am origin AS, trust relationship does not exist, thus dropping this advertisement from the DC server advertiser.....");
                     }
+                    
+                    // save the received trust and distrust relations in local ribcertstore cache
+                    if (!is_origin_AS_for_curr_ad) {
+                        // * if not empty trust relation, add to cache
+                        if ( !(advertised_entry->trust_cert.issuer.size() == 0
+                            && advertised_entry->trust_cert.entity.size() == 0
+                            && advertised_entry->trust_cert.r_transitivity == 0) ) {
+                                std::pair<std::string, int> __val = std::make_pair(advertised_entry->trust_cert.entity, advertised_entry->trust_cert.r_transitivity);
+                                rib->trustRelations->insert(std::make_pair(advertised_entry->trust_cert.issuer, __val));
+                        }
+
+                        if (advertised_entry->distrust_certs.size() != 0) {
+                            for (auto& item : advertised_entry->distrust_certs) {
+                                rib->distrustRelations->insert(std::make_pair(item.issuer, item.entity));
+                            }
+                        }
+                    }
+
                     if ((trust_curr_AS&&is_origin_AS_for_curr_ad) || !is_origin_AS_for_curr_ad) {
                         for (auto& [AS_num, addr] : rib->peers) {
                             //   cases not to forward:
