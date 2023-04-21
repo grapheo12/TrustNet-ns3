@@ -146,14 +146,29 @@ namespace ns3
             m_rxTraceWithAddresses(packet, from, localAddress);
             if (packet->GetSize() > 0)
             {
-                continue;
-                SeqTsHeader seqTs;
-                packet->RemoveHeader(seqTs);
-                
-                NS_LOG_INFO("Received link state packet: " << seqTs.GetSeq() << " " << seqTs.GetTs());
+                std::stringstream ss;
+                packet->CopyData(&ss, packet->GetSize());
+                std::string payload = ss.str();
+                // continue;
+                // SeqTsHeader seqTs;
+                // packet->RemoveHeader(seqTs);
+                if (payload.find("GIVEPATH") != std::string::npos) {
+                    Json::Value root;
+                    Json::Reader reader;
+                    bool parsingSuccessful = reader.parse(payload.substr(9), root);
+                    if (!parsingSuccessful) {
+                        NS_LOG_WARN("GIVEPATH request cannot be parsed correctly");
+                    }
+                    std::string client_name = root["client_name"].asString();
+                    std::string dc_name = root["dc_name"].asString();
+                    // TODO: ComputePath API call here
+
+                }                
+
+                // NS_LOG_INFO("Received link state packet: " << seqTs.GetSeq() << " " << seqTs.GetTs());
                 
 
-                uint32_t currentSequenceNumber = seqTs.GetSeq();
+                // uint32_t currentSequenceNumber = seqTs.GetSeq();
                 if (InetSocketAddress::IsMatchingType(from))
                 {
                     // NS_LOG_INFO("TraceDelay: RX " << receivedSize << " bytes from "
@@ -173,7 +188,7 @@ namespace ns3
                                                 // << " Delay: " << Simulator::Now() - seqTs.GetTs());
                 }
 
-                m_lossCounter.NotifyReceived(currentSequenceNumber);
+                // m_lossCounter.NotifyReceived(currentSequenceNumber);
                 m_received++;
             }
         }

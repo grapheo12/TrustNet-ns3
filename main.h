@@ -431,7 +431,7 @@ namespace ns3{
         void Send();
         void SendUsingPath(std::vector<Ipv4Address>& path, Ipv4Address& destination_ip);
         void GetSwitch();
-        void GetAds();
+        void GetPath();
         void HandleSwitch(Ptr<Socket> sock);
         void PledgeAllegiance();
 
@@ -443,6 +443,7 @@ namespace ns3{
         uint32_t m_sent;       //!< Counter for sent packets
         uint64_t m_totalTx;    //!< Total bytes sent
         Ptr<Socket> m_socket;  //!< Socket
+        Ptr<Socket> path_computer_socket;
         Ptr<Socket> switch_socket;
         Address m_peerAddress; //!< Remote peer address
         uint16_t m_peerPort;   //!< Remote peer port

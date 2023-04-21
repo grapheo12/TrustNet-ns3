@@ -161,10 +161,17 @@ namespace ns3
         m_socket->SetAllowBroadcast(true);
         m_sendEvent = Simulator::Schedule(Seconds(0.1), &DummyClient2::GetSwitch, this); // * first fetch local TD's live switches
         
-        // TODO: Only ask ads for once, but we need periodic fetch in case dynamic advertisements
-        
+       if (!path_computer_socket){
+            TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
+            path_computer_socket = Socket::CreateSocket(GetNode(), tid);
+
+            path_computer_socket->Connect(
+                InetSocketAddress(Ipv4Address::ConvertFrom(m_peerAddress), RIBPATHCOMPUTER_PORT));
+
+        }
+
         Simulator::Schedule(Seconds(0.2), &DummyClient2::PledgeAllegiance, this);       // * Include myself in RIB's trustgraph
-        Simulator::Schedule(Seconds(0.3), &DummyClient2::GetAds, this); // * fetch advertised names
+        Simulator::Schedule(Seconds(0.3), &DummyClient2::GetPath, this); // * fetch advertised names
 
         NS_LOG_INFO(m_name << " started");
     }
@@ -215,19 +222,29 @@ namespace ns3
     }
 
     void
-    DummyClient2::GetAds()
+    DummyClient2::GetPath()
     {
-        NS_LOG_INFO("DummyClient2:GetAds");
-        std::string s = "GIVEADS";
+        NS_LOG_INFO("DummyClient2:GetPath");
+        // Client requesting a path
+        // Packet format:
+        // GIVEPATH {
+            // client_name:xxxxxxx
+            // dc_name:mmmmmmm 
+        //}
+        std::string s = "GIVEPATH";
         std::set<std::string>& namesToAsk = this->dcnames_to_route;
+        Json::Value request;
+        request["client_name"] = m_name;
+        request["dc_name"] = "";
         for (auto& n : namesToAsk) {
             // Packet Format is "GIVEADS [dc name]"
-            std::string res = s + " " + n;
+            request["dc_name"] = n;
+            std::string res = s + " " + request.toStyledString();
             Ptr<Packet> p = Create<Packet>((const uint8_t *)res.c_str(), res.size());
 
             
-            if (m_socket){
-                m_socket->Send(p);   
+            if (path_computer_socket){
+                path_computer_socket->Send(p);   
             }
         }
 
@@ -247,7 +264,7 @@ namespace ns3
                 p->CopyData(&ss, p->GetSize());
                 std::string temp = ss.str();
 
-
+                // todo: change advertisement process into path response processing
                 if (temp.find("ad:") != std::string::npos) {
                     NS_LOG_INFO("Dummy Client2 GIVEADS response: " << temp);
                     
