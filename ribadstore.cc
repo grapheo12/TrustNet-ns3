@@ -341,6 +341,28 @@ namespace ns3
 
                     bool trust_curr_AS = false;
                     bool is_origin_AS_for_curr_ad = advertised_entry->origin_AS_addr == my_addr;
+                    
+                    // If I am not the origin AS and the ad is forwarded from someone not in my peer,
+                    // Drop it
+                    
+                    if (!is_origin_AS_for_curr_ad){
+                        if (advertised_entry->td_path.size() <= 1) continue;
+                        bool found = false;
+                        Address sender_addr = advertised_entry->td_path[advertised_entry->td_path.size() - 2];
+                        for (auto &x: rib->peers){
+                            // Costly search. TODO: Define a reverse map to make it constant / log n time
+                            if (x.second == sender_addr){
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found){
+                            NS_LOG_INFO("Potentially malicious advertisement. No changes made to trust relations. Dropping...");
+                            continue;
+                        }
+                    }
+
+
                     // for (auto it = trust_relation_map.begin(); it != trust_relation_map.end(); it ++) {
                     //     NS_LOG_INFO("issuer: " << it->first << ", entity: " << it->second.first << ", type: " << it->second.second);
                     // }
@@ -392,6 +414,33 @@ namespace ns3
                                 rib->distrustRelations->insert(std::make_pair(item.issuer, item.entity));
                             }
                         }
+
+                        // Include the td_path in trust relations, Otherwise the graph is not complete
+                        for (int i = 0; i < advertised_entry->td_path.size() - 1; i++){
+                            Address u = advertised_entry->td_path[i + 1];
+                            Address v = advertised_entry->td_path[i];
+                            std::stringstream asu, asv;
+
+                            auto itu = rib->rib_addr_map_.find(u);
+                            if (itu == rib->rib_addr_map_.end()){
+                                continue;
+                            }
+                            asu << "AS" << itu->second;
+
+                            auto itv = rib->rib_addr_map_.find(v);
+                            if (itv == rib->rib_addr_map_.end()){
+                                continue;
+                            }
+                            asv << "AS" << itv->second;
+                            rib->trustRelations->insert({asu.str(), {asv.str(), INT_MAX}});
+                            NS_LOG_INFO("From RIB: AS" << rib->rib_addr_map_[rib->my_addr] << " Inserted extra: " << asu.str() << " -> " << asv.str());
+                        }
+
+                        // Include DCServer -> TD map
+                        std::stringstream originStr, dcServerStr;
+                        originStr << "AS" << rib->rib_addr_map_[advertised_entry->origin_AS_addr];
+                        dcServerStr << advertised_entry->origin_server;
+                        rib->trustRelations->insert({originStr.str(), {dcServerStr.str(), INT_MAX}});
                     }
 
                     if ((trust_curr_AS&&is_origin_AS_for_curr_ad) || !is_origin_AS_for_curr_ad) {

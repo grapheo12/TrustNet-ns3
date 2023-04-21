@@ -201,9 +201,10 @@ namespace ns3
             return;
         }
 
-        NS_LOG_INFO("Recalculating Trust Relation Graph...");
+        NS_LOG_INFO("From RIB: AS" << rib->rib_addr_map_[rib->my_addr] << " Recalculating Trust Relation Graph...");
 
         for (auto &x: *(rib->trustRelations)){
+            NS_LOG_INFO(x.first << " -> " << x.second.first);
             if (trust_graph.nodes_to_id.find(x.first) == trust_graph.nodes_to_id.end()){
                 trust_graph.nodes_to_id[x.first] = trust_graph.__node_cnt++;
             }

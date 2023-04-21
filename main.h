@@ -472,6 +472,7 @@ class RIB
 
         ApplicationContainer InstallTraceRoute(const std::vector<Address>& all_ribs_, std::map<std::string, int> *addr_map);
 
+        std::map<Address, int> rib_addr_map_;
     private:
         std::map<std::string, int> *addr_map_;
         Ptr<Node> my_node;

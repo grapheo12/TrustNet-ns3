@@ -84,5 +84,9 @@ ApplicationContainer RIB::InstallTraceRoute(const std::vector<Address>& all_ribs
         trHelper.PrintTraceRouteAt(my_node, outw, addr_map);
     }
 
+    for (int i = 0; i < all_ribs_.size(); i++){
+        rib_addr_map_[all_ribs_[i]] = i;
+    }
+
     return trApps;
 }
