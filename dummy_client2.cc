@@ -17,6 +17,11 @@ namespace ns3
                 .SetParent<Application>()
                 .SetGroupName("Applications")
                 .AddConstructor<DummyClient2>()
+                .AddAttribute("Name",
+                            "The name client advertises itself as, of the format user:<blah_blah>",
+                            StringValue("user:1"),
+                            MakeStringAccessor(&DummyClient2::m_name),
+                            MakeStringChecker())
                 .AddAttribute("MaxPackets",
                             "The maximum number of packets the application will send",
                             UintegerValue(100),
@@ -157,10 +162,46 @@ namespace ns3
         m_sendEvent = Simulator::Schedule(Seconds(0.1), &DummyClient2::GetSwitch, this); // * first fetch local TD's live switches
         
         // TODO: Only ask ads for once, but we need periodic fetch in case dynamic advertisements
-        Simulator::Schedule(Seconds(0.1), &DummyClient2::GetAds, this); // * fetch advertised names
-        NS_LOG_INFO("STartkagnljdkgs");
+        
+        Simulator::Schedule(Seconds(0.2), &DummyClient2::PledgeAllegiance, this);       // * Include myself in RIB's trustgraph
+        Simulator::Schedule(Seconds(0.3), &DummyClient2::GetAds, this); // * fetch advertised names
+
+        NS_LOG_INFO(m_name << " started");
     }
 
+    void
+    DummyClient2::PledgeAllegiance()
+    {
+        TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
+        Ptr<Socket> cert_socket = Socket::CreateSocket(GetNode(), tid);
+        cert_socket->Connect(
+            InetSocketAddress(Ipv4Address::ConvertFrom(m_peerAddress), RIBCERTSTORE_PORT)
+        );
+
+        SeqTsHeader seqTs;
+        seqTs.SetSeq(0xffff);
+        
+        Json::Value root;
+        std::stringstream ss;
+        ss << Ipv4Address::ConvertFrom(m_peerAddress);
+
+        root["issuer"] = m_name;
+        root["type"] = "trust";
+        root["entity"] = ss.str();
+
+        Json::StyledWriter jsonWriter;
+        std::string body = jsonWriter.write(root);
+
+        Ptr<Packet> p = Create<Packet>((const uint8_t *)body.c_str(), body.size());
+        p->AddHeader(seqTs);
+
+        cert_socket->Send(p);
+        NS_LOG_INFO("Pledged Allegiance to my RIB");
+
+
+        cert_socket->Close();
+
+    }
     void
     DummyClient2::GetSwitch()
     {

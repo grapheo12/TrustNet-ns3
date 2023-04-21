@@ -185,6 +185,23 @@ namespace ns3
         parent_ctx = ctx;
     }
 
+    bool
+    RIBPathComputer::isItMe(std::string entity)
+    {
+        if (entity == "me") return true;
+        
+        RIB *rib = (RIB *)(this->parent_ctx);
+        std::stringstream ss, ss2;
+        ss << "AS" << rib->td_num;
+        if (entity == ss.str()) return true;
+
+        ss2 << Ipv4Address::ConvertFrom(rib->my_addr);
+        if (entity == ss2.str()) return true;
+
+        return false;
+
+    }
+
     void
     RIBPathComputer::ComputeGraph()
     {
@@ -204,17 +221,22 @@ namespace ns3
         NS_LOG_INFO("From RIB: AS" << rib->rib_addr_map_[rib->my_addr] << " Recalculating Trust Relation Graph...");
 
         for (auto &x: *(rib->trustRelations)){
-            NS_LOG_INFO(x.first << " -> " << x.second.first);
-            if (trust_graph.nodes_to_id.find(x.first) == trust_graph.nodes_to_id.end()){
-                trust_graph.nodes_to_id[x.first] = trust_graph.__node_cnt++;
+            // The entity "me", "AS#" and <my ip> should all be merged to "me"
+            std::string s1 = isItMe(x.first) ? "me" : x.first;
+            std::string s2 = isItMe(x.second.first) ? "me" : x.second.first;
+
+            NS_LOG_INFO(s1 << " -> " << s2);
+
+            if (trust_graph.nodes_to_id.find(s1) == trust_graph.nodes_to_id.end()){
+                trust_graph.nodes_to_id[s1] = trust_graph.__node_cnt++;
             }
 
-            if (trust_graph.nodes_to_id.find(x.second.first) == trust_graph.nodes_to_id.end()){
-                trust_graph.nodes_to_id[x.second.first] = trust_graph.__node_cnt++;
+            if (trust_graph.nodes_to_id.find(s2) == trust_graph.nodes_to_id.end()){
+                trust_graph.nodes_to_id[s2] = trust_graph.__node_cnt++;
             }
 
-            int id1 = trust_graph.nodes_to_id[x.first];
-            int id2 = trust_graph.nodes_to_id[x.second.first];
+            int id1 = trust_graph.nodes_to_id[s1];
+            int id2 = trust_graph.nodes_to_id[s2];
             auto it2 = trust_graph.trust_edges.equal_range(id1);
             bool found = false;
             for (auto __it = it2.first; __it != it2.second; __it++){
@@ -235,16 +257,20 @@ namespace ns3
         }
 
         for (auto &x: *(rib->distrustRelations)){
-            if (trust_graph.nodes_to_id.find(x.first) == trust_graph.nodes_to_id.end()){
-                trust_graph.nodes_to_id[x.first] = trust_graph.__node_cnt++;
+            // The entity "me", "AS#" and <my ip> should all be merged to "me"
+            std::string s1 = isItMe(x.first) ? "me" : x.first;
+            std::string s2 = isItMe(x.second) ? "me" : x.second;
+
+            if (trust_graph.nodes_to_id.find(s1) == trust_graph.nodes_to_id.end()){
+                trust_graph.nodes_to_id[s1] = trust_graph.__node_cnt++;
             }
 
-            if (trust_graph.nodes_to_id.find(x.second) == trust_graph.nodes_to_id.end()){
-                trust_graph.nodes_to_id[x.second] = trust_graph.__node_cnt++;
+            if (trust_graph.nodes_to_id.find(s2) == trust_graph.nodes_to_id.end()){
+                trust_graph.nodes_to_id[s2] = trust_graph.__node_cnt++;
             }
 
-            int id1 = trust_graph.nodes_to_id[x.first];
-            int id2 = trust_graph.nodes_to_id[x.second];
+            int id1 = trust_graph.nodes_to_id[s1];
+            int id2 = trust_graph.nodes_to_id[s2];
 
             auto it2 = trust_graph.distrust_edges.equal_range(id1);
             bool found = false;
@@ -273,5 +299,43 @@ namespace ns3
         for (auto &x: trust_graph.distrust_edges){
             NS_LOG_INFO("Distrust Edge: " << x.first << " -> " << x.second);
         }
+
+        trust_graph.FloydWarshall();
+    }
+
+    void
+    Graph::FloydWarshall()
+    {
+        for (int i = 0; i < __node_cnt; i++){
+            for (int j = 0; j < __node_cnt; j++){
+                if (i == j){
+                    __distMatrix[{i, j}] = {0, j};
+                }else{
+                    __distMatrix[{i, j}] = {INT_MAX, -1};
+                }
+            }
+
+            auto it = trust_edges.equal_range(i);
+            for (auto __it = it.first; __it != it.second; __it++){
+                int j = __it->second;
+                __distMatrix[{i, j}] = {1, j};
+            }
+        }
+
+        for (int i = 0; i < __node_cnt; i++){
+            for (int j = 0; j < __node_cnt; j++){
+                for (int k = 0; k < __node_cnt; k++){
+                    int dist_ij = __distMatrix[{i, j}].first;
+                    int dist_ik = __distMatrix[{i, k}].first;
+                    int dist_kj = __distMatrix[{k, j}].first;
+
+                    if (dist_ij > dist_ik + dist_kj){
+                        __distMatrix[{i, j}] = {dist_ik + dist_kj, __distMatrix[{k, j}].second};
+                    }
+                }
+            }
+        }
+
+
     }
 }

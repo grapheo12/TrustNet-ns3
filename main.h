@@ -45,10 +45,13 @@ extern std::map<Address, int> global_addr_to_AS;
 
 struct Graph {
     std::map<std::string, int> nodes_to_id;
-    std::multimap<int, int> trust_edges;          // adjacency list representation
+    std::multimap<int, int> trust_edges;                                    // adjacency list representation
     std::multimap<int, int> distrust_edges;
-    std::map<std::pair<int, int>, int> transitivity;  // edge -> r_transitivity
+    std::map<std::pair<int, int>, int> transitivity;                        // edge -> r_transitivity
+    std::map<std::pair<int, int>, std::pair<int, int>> __distMatrix;        // (u, v) ---> (min dist from u to v, last node on path)
     int __node_cnt;
+
+    void FloydWarshall();
 };
 
 
@@ -261,6 +264,8 @@ namespace ns3{
         void StopApplication() override;
         void HandleRead(Ptr<Socket> socket);
         void ComputeGraph();
+        bool isItMe(std::string entity);
+        void FloydWarshall();
 
 
 
@@ -428,10 +433,12 @@ namespace ns3{
         void GetSwitch();
         void GetAds();
         void HandleSwitch(Ptr<Socket> sock);
+        void PledgeAllegiance();
 
         uint32_t m_count; //!< Maximum number of packets the application will send
         Time m_interval;  //!< Packet inter-send time
         uint32_t m_size;  //!< Size of the sent packet (including the SeqTsHeader)
+        std::string m_name;
 
         uint32_t m_sent;       //!< Counter for sent packets
         uint64_t m_totalTx;    //!< Total bytes sent
