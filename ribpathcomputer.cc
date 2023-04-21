@@ -228,11 +228,15 @@ namespace ns3
             NS_LOG_INFO(s1 << " -> " << s2);
 
             if (trust_graph.nodes_to_id.find(s1) == trust_graph.nodes_to_id.end()){
-                trust_graph.nodes_to_id[s1] = trust_graph.__node_cnt++;
+                trust_graph.nodes_to_id[s1] = trust_graph.__node_cnt;
+                trust_graph.id_to_nodes[trust_graph.__node_cnt] = s1;
+                trust_graph.__node_cnt++;
             }
 
             if (trust_graph.nodes_to_id.find(s2) == trust_graph.nodes_to_id.end()){
-                trust_graph.nodes_to_id[s2] = trust_graph.__node_cnt++;
+                trust_graph.nodes_to_id[s2] = trust_graph.__node_cnt;
+                trust_graph.id_to_nodes[trust_graph.__node_cnt] = s2;
+                trust_graph.__node_cnt++;
             }
 
             int id1 = trust_graph.nodes_to_id[s1];
@@ -262,31 +266,31 @@ namespace ns3
             std::string s2 = isItMe(x.second) ? "me" : x.second;
 
             if (trust_graph.nodes_to_id.find(s1) == trust_graph.nodes_to_id.end()){
-                trust_graph.nodes_to_id[s1] = trust_graph.__node_cnt++;
+                trust_graph.nodes_to_id[s1] = trust_graph.__node_cnt;
+                trust_graph.id_to_nodes[trust_graph.__node_cnt] = s1;
+                trust_graph.__node_cnt++;
             }
 
             if (trust_graph.nodes_to_id.find(s2) == trust_graph.nodes_to_id.end()){
-                trust_graph.nodes_to_id[s2] = trust_graph.__node_cnt++;
+                trust_graph.nodes_to_id[s2] = trust_graph.__node_cnt;
+                trust_graph.id_to_nodes[trust_graph.__node_cnt] = s2;
+                trust_graph.__node_cnt++;
             }
 
             int id1 = trust_graph.nodes_to_id[s1];
             int id2 = trust_graph.nodes_to_id[s2];
 
-            auto it2 = trust_graph.distrust_edges.equal_range(id1);
-            bool found = false;
-            for (auto __it = it2.first; __it != it2.second; __it++){
-                if (__it->second == id2){
-                    found = true;
-                    break;
-                }
-            }
-            if (!found){
+            auto it2 = trust_graph.distrust_edges.find({id1, id2});
+            if (it2 == trust_graph.distrust_edges.end()){
                 trust_graph.distrust_edges.insert({id1, id2});
             }
         }
 
         for (auto &x: trust_graph.nodes_to_id){
             NS_LOG_INFO("Node Entry: " << x.first << "\t" << x.second);
+        }
+        for (auto &x: trust_graph.id_to_nodes){
+            NS_LOG_INFO("Reverse Node Entry: " << x.first << " " << x.second);
         }
         for (auto &x: trust_graph.trust_edges){
             auto it = trust_graph.transitivity.find({x.first, x.second});
@@ -301,41 +305,91 @@ namespace ns3
         }
 
         trust_graph.FloydWarshall();
+        if (trust_graph.nodes_to_id.find("user:1") != trust_graph.nodes_to_id.end()){
+            auto path = GetPath("user:1", "AS7");
+            std::stringstream ss;
+            for (std::string& x: path){
+                ss << x << " -> ";
+            }
+            int dist = trust_graph.__distMatrix[{trust_graph.nodes_to_id["user:1"], trust_graph.nodes_to_id["AS7"]}].first;
+            NS_LOG_INFO("Dummy Path: " << ss.str() << "Length: " << dist);
+        }
     }
 
-    void
-    Graph::FloydWarshall()
+    std::vector<std::string>
+    RIBPathComputer::GetPath(std::string startNode, std::string endNode)
     {
-        for (int i = 0; i < __node_cnt; i++){
-            for (int j = 0; j < __node_cnt; j++){
-                if (i == j){
-                    __distMatrix[{i, j}] = {0, j};
-                }else{
-                    __distMatrix[{i, j}] = {INT_MAX, -1};
-                }
-            }
-
-            auto it = trust_edges.equal_range(i);
-            for (auto __it = it.first; __it != it.second; __it++){
-                int j = __it->second;
-                __distMatrix[{i, j}] = {1, j};
-            }
+        std::vector<std::string> ans;
+        if (trust_graph.nodes_to_id.find(startNode) == trust_graph.nodes_to_id.end()){
+            return ans;
+        }
+        if (trust_graph.nodes_to_id.find(endNode) == trust_graph.nodes_to_id.end()){
+            return ans;
         }
 
-        for (int i = 0; i < __node_cnt; i++){
-            for (int j = 0; j < __node_cnt; j++){
-                for (int k = 0; k < __node_cnt; k++){
-                    int dist_ij = __distMatrix[{i, j}].first;
-                    int dist_ik = __distMatrix[{i, k}].first;
-                    int dist_kj = __distMatrix[{k, j}].first;
+        int startId = trust_graph.nodes_to_id[startNode];
+        int endId = trust_graph.nodes_to_id[endNode];
 
-                    if (dist_ij > dist_ik + dist_kj){
-                        __distMatrix[{i, j}] = {dist_ik + dist_kj, __distMatrix[{k, j}].second};
-                    }
-                }
-            }
+        if (trust_graph.__distMatrix[{startId, endId}].first == INT_MAX){
+            return ans;
         }
 
+        int pathLength = trust_graph.__distMatrix[{startId, endId}].first;
+        for (int i = 0; i <= pathLength; i++){
+            ans.push_back("");
+        }
 
+        int curr = endId;
+        for (int i = pathLength; i >= 0; i--){
+            // NS_LOG_INFO("Curr: " << curr << trust_graph.id_to_nodes[curr] << i);
+            ans[i] += trust_graph.id_to_nodes[curr];
+            // NS_LOG_INFO("ljgkrjgkg " << ans[i]);
+            curr = trust_graph.__distMatrix[{startId, curr}].second;
+        }
+
+        return ans;
     }
+}
+
+void
+Graph::FloydWarshall()
+{
+    for (int i = 0; i < __node_cnt; i++){
+        for (int j = 0; j < __node_cnt; j++){
+            if (i == j){
+                __distMatrix[{i, j}] = {0, j};
+            }else{
+                __distMatrix[{i, j}] = {INT_MAX, -1};
+            }
+        }
+
+        auto it = trust_edges.equal_range(i);
+        for (auto __it = it.first; __it != it.second; __it++){
+            int j = __it->second;
+            __distMatrix[{i, j}] = {1, i};
+        }
+    }
+
+
+    for (int i = 0; i < __node_cnt; i++){
+        for (int j = 0; j < __node_cnt; j++){
+            for (int k = 0; k < __node_cnt; k++){
+                long dist_ij = __distMatrix[{i, j}].first;
+                long dist_ik = __distMatrix[{i, k}].first;
+                long dist_kj = __distMatrix[{k, j}].first;
+
+                if (dist_ij > dist_ik + dist_kj){
+                    __distMatrix[{i, j}] = {dist_ik + dist_kj, __distMatrix[{k, j}].second};
+                }
+                
+            }
+
+            // If (i, j) is a distrust edge, reset the distance to Infinite
+            if (distrust_edges.find({i, j}) != distrust_edges.end()){
+                __distMatrix[{i, j}] = {INT_MAX, -1};
+            }
+        }
+    }
+
+    NS_LOG_INFO("Floyd Warshall over");
 }

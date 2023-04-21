@@ -45,8 +45,9 @@ extern std::map<Address, int> global_addr_to_AS;
 
 struct Graph {
     std::map<std::string, int> nodes_to_id;
+    std::map<int, std::string> id_to_nodes;
     std::multimap<int, int> trust_edges;                                    // adjacency list representation
-    std::multimap<int, int> distrust_edges;
+    std::set<std::pair<int, int>> distrust_edges;
     std::map<std::pair<int, int>, int> transitivity;                        // edge -> r_transitivity
     std::map<std::pair<int, int>, std::pair<int, int>> __distMatrix;        // (u, v) ---> (min dist from u to v, last node on path)
     int __node_cnt;
@@ -265,8 +266,7 @@ namespace ns3{
         void HandleRead(Ptr<Socket> socket);
         void ComputeGraph();
         bool isItMe(std::string entity);
-        void FloydWarshall();
-
+        std::vector<std::string> GetPath(std::string startNode, std::string endNode);
 
 
         uint16_t m_port;                 //!< Port on which we listen for incoming packets.
