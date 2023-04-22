@@ -194,6 +194,11 @@ namespace ns3
                     std::pair<std::string, int> __val = std::make_pair(jsonData["entity"].asString(), jsonData["r_transitivity"].asInt());
                     trustRelations.insert(std::make_pair(
                         jsonData["issuer"].asString(), __val));
+                    
+                    if (jsonData["issuer"].asString().find(":") != std::string::npos){
+                        std::pair<std::string, int> __val2 = std::make_pair(jsonData["issuer"].asString(), INT_MAX);
+                        trustRelations.insert(std::make_pair(jsonData["entity"].asString(), __val2));
+                    }
                 }else if (jsonData["type"].asString() == "distrust"){
                     distrustRelations.insert(std::make_pair(
                         jsonData["issuer"].asString(), jsonData["entity"].asString()));
