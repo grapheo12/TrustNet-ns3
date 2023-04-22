@@ -429,7 +429,7 @@ namespace ns3{
         void StartApplication() override;
         void StopApplication() override;
         void Send();
-        void SendUsingPath(std::vector<Ipv4Address>& path, Ipv4Address& destination_ip);
+        void SendUsingPath(std::vector<std::string>& path, std::string& destination_ip);
         void GetSwitch();
         void GetPath();
         void HandleSwitch(Ptr<Socket> sock);

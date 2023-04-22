@@ -137,6 +137,7 @@ namespace ns3
     RIBPathComputer::SendPath(Ptr<Socket> socket, Address dest, std::string path) 
     {
         std::string str_repr = "path:" + path;
+        NS_LOG_INFO("path to send: " << str_repr);
         Ptr<Packet> p = Create<Packet>((const uint8_t *)str_repr.c_str(), str_repr.size());
         NS_LOG_INFO("Send to client " << socket->SendTo(p, 0, dest));
     }
@@ -163,6 +164,7 @@ namespace ns3
                 // SeqTsHeader seqTs;
                 // packet->RemoveHeader(seqTs);
                 if (payload.find("GIVEPATH") != std::string::npos) {
+                    NS_LOG_INFO("RibPathComputer got packet: " << payload);
                     Json::Value root;
                     Json::Reader reader;
                     bool parsingSuccessful = reader.parse(payload.substr(9), root);
@@ -172,18 +174,35 @@ namespace ns3
                     std::string client_name = root["client_name"].asString();
                     std::string dc_name = root["dc_name"].asString();
 
-                    // TODO: ComputePath API call here
-                    std::vector<std::string> path_vec = GetPath(client_name, dc_name);
+                    
+                    RIB* rib = (RIB *) (this->parent_ctx);
+                    auto ptr = rib->trustRelations->find(dc_name);
+                    if (ptr == rib->trustRelations->end()) {
+                        NS_LOG_WARN("Unable to find the destination DC name in RIB");
+                        continue;
+                    }
+                    std::string dc_server_ip = ptr->second.first;
+                    std::vector<std::string> path_vec = GetPath(client_name, dc_server_ip);
 
+                    
                     std::string path = "";
                     for (auto& ip : path_vec) {
-                        path.append(ip + ",");
+                        if (ip == "me") {
+                            int as_number = global_addr_to_AS.at(rib->my_addr);
+                            ip = "AS" + std::to_string(as_number);
+                        }
+                        if (ip.find("AS") != std::string::npos) {
+                            path.append(ip + ",");
+                        }
                     }
+                    // * add the destination ip into the path
+                    path.append(path_vec[path_vec.size()-1]+",");
                     // path = path.substr(0, path.size()-1); // trim the last ","
 
 
                     // * Send the path to the client
-                    SendPath(socket, from, path);
+                    Simulator::ScheduleNow(&RIBPathComputer::SendPath, this, socket, from, path);
+                    
                 }                
 
                 // NS_LOG_INFO("Received link state packet: " << seqTs.GetSeq() << " " << seqTs.GetTs());
@@ -357,9 +376,11 @@ namespace ns3
     {
         std::vector<std::string> ans;
         if (trust_graph.nodes_to_id.find(startNode) == trust_graph.nodes_to_id.end()){
+            NS_LOG_INFO("oqwebnobdfbxcvb");
             return ans;
         }
         if (trust_graph.nodes_to_id.find(endNode) == trust_graph.nodes_to_id.end()){
+            NS_LOG_INFO("eruigbcvxjkxuirme");
             return ans;
         }
 

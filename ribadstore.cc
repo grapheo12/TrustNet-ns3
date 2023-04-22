@@ -416,7 +416,7 @@ namespace ns3
                         }
 
                         // Include the td_path in trust relations, Otherwise the graph is not complete
-                        for (int i = 0; i < advertised_entry->td_path.size() - 1; i++){
+                        for (size_t i = 0; i < advertised_entry->td_path.size() - 1; i++){
                             Address u = advertised_entry->td_path[i + 1];
                             Address v = advertised_entry->td_path[i];
                             std::stringstream asu, asv;

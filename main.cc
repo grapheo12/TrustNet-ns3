@@ -382,7 +382,10 @@ main(int argc, char* argv[])
     dummyClient2->SetAttribute("PacketSize", UintegerValue(1024));
 
     // * set dcnames dummy Client 2 will send message to 
-    dummyClient2->dcnames_to_route = generated_names;
+    // dummyClient2->dcnames_to_route;
+    for (auto str : generated_names) {
+        dummyClient2->dcnames_to_route.insert("fogrobotics:" + str);
+    }
     for (auto& ref : dummyClient2->dcnames_to_route) {
         NS_LOG_INFO("DC name dummy client 2 will try to send message: " << ref);
     }
@@ -401,10 +404,10 @@ main(int argc, char* argv[])
     std::default_random_engine rGen;
     std::normal_distribution<double> rDist(0.0, 10.0);
 
-    for (int i = 0; i < bth.GetNAs(); i++){
+    for (unsigned int i = 0; i < bth.GetNAs(); i++){
         double asX = 200 * cos(2 * 3.14 * (double)i / bth.GetNAs());
         double asY = 200 * sin(2 * 3.14 * (double)i / bth.GetNAs());
-        for (int j = 0; j < bth.GetNNodesForAs(i); j++){
+        for (unsigned int j = 0; j < bth.GetNNodesForAs(i); j++){
             Ptr<Node> n = bth.GetNodeForAs(i, j);
             double r = rDist(rGen);
             double x = asX + r * cos(2 * 3.14 * (double)j / bth.GetNNodesForAs(i));
@@ -412,7 +415,7 @@ main(int argc, char* argv[])
             n->GetObject<MobilityModel>()->SetPosition({x, y, 0});
         }
 
-        for (int j = 0; j < bth.GetNLeafNodesForAs(i); j++){
+        for (unsigned int j = 0; j < bth.GetNLeafNodesForAs(i); j++){
             Ptr<Node> n = bth.GetLeafNodeForAs(i, j);
             double r = 5 + rDist(rGen);
             double x = asX + r * cos(2 * 3.14 * (double)j / bth.GetNLeafNodesForAs(i));
@@ -420,7 +423,7 @@ main(int argc, char* argv[])
             n->GetObject<MobilityModel>()->SetPosition({x, y, 0});
         }
 
-        for (int j = 0; j < switchAssgn[i].first.GetN(); j++){
+        for (unsigned int j = 0; j < switchAssgn[i].first.GetN(); j++){
             Ptr<Node> n = switchAssgn[i].first.Get(j);
             double r = 10 + rDist(rGen);
             double x = asX + r * cos(2 * 3.14 * (double)j / switchAssgn[i].first.GetN());
@@ -428,7 +431,7 @@ main(int argc, char* argv[])
             n->GetObject<MobilityModel>()->SetPosition({x, y, 0});
         }
 
-        for (int j = 0; j < serverAssgn[i].first.GetN(); j++){
+        for (unsigned int j = 0; j < serverAssgn[i].first.GetN(); j++){
             Ptr<Node> n = serverAssgn[i].first.Get(j);
             double r = 10 + rDist(rGen);
             double x = asX + r * cos(2 * 3.14 * (double)j / serverAssgn[i].first.GetN());

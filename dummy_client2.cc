@@ -161,7 +161,7 @@ namespace ns3
         m_socket->SetAllowBroadcast(true);
         m_sendEvent = Simulator::Schedule(Seconds(0.1), &DummyClient2::GetSwitch, this); // * first fetch local TD's live switches
         
-       if (!path_computer_socket){
+        if (!path_computer_socket){
             TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
             path_computer_socket = Socket::CreateSocket(GetNode(), tid);
 
@@ -169,9 +169,10 @@ namespace ns3
                 InetSocketAddress(Ipv4Address::ConvertFrom(m_peerAddress), RIBPATHCOMPUTER_PORT));
 
         }
+        path_computer_socket->SetRecvCallback(MakeCallback(&DummyClient2::HandleSwitch, this));
 
         Simulator::Schedule(Seconds(0.2), &DummyClient2::PledgeAllegiance, this);       // * Include myself in RIB's trustgraph
-        Simulator::Schedule(Seconds(0.3), &DummyClient2::GetPath, this); // * fetch advertised names
+        Simulator::Schedule(Seconds(3), &DummyClient2::GetPath, this); // * fetch advertised names
 
         NS_LOG_INFO(m_name << " started");
     }
@@ -235,7 +236,7 @@ namespace ns3
         std::set<std::string>& namesToAsk = this->dcnames_to_route;
         Json::Value request;
         request["client_name"] = m_name;
-        request["dc_name"] = "";
+        // request["dc_name"] = "";
         for (auto& n : namesToAsk) {
             // Packet Format is "GIVEADS [dc name]"
             request["dc_name"] = n;
@@ -244,6 +245,7 @@ namespace ns3
 
             
             if (path_computer_socket){
+                NS_LOG_INFO("sending through get path socket");
                 path_computer_socket->Send(p);   
             }
         }
@@ -271,13 +273,15 @@ namespace ns3
                     // * deserialize the advertisement packet
                     std::string body = temp.substr(5);
 
-                    
-                    std::vector<Ipv4Address> path;
+
+                    std::vector<std::string> path;
                     auto pos = body.find(",");
                     while (pos != std::string::npos) {
-                        Ipv4Address toAdd = Ipv4Address(body.substr(0, pos).c_str());
+                        // Ipv4Address toAdd = Ipv4Address(body.substr(0, pos).c_str());
+                        std::string toAdd = body.substr(0, pos);
                         path.push_back(toAdd);
-                        body = body.substr(pos);
+                        body = body.substr(pos+1);
+                        pos = body.find(",");
                     }
 
 
@@ -292,6 +296,8 @@ namespace ns3
                     }
                     
                     // * Send out the packet
+                    std::string origin_server = path[path.size()-1];
+                    NS_LOG_INFO("origin_server is: " << origin_server);
                     Simulator::ScheduleNow(&DummyClient2::SendUsingPath, this, path, origin_server);
 
                 } else {
@@ -330,11 +336,13 @@ namespace ns3
     }
 
     void
-    DummyClient2::SendUsingPath(std::vector<Ipv4Address>& path, Ipv4Address& destination_ip)
+    DummyClient2::SendUsingPath(std::vector<std::string>& path, std::string& destination_ip)
     {
         NS_LOG_FUNCTION(this);
         // NS_ASSERT(m_sendEvent.IsExpired());
-
+        for (auto& s : path) {
+            NS_LOG_INFO("path components: " << s);
+        }
         SeqTsHeader seqTs;
         seqTs.SetSeq(m_sent);
         /**********************************************
@@ -360,17 +368,22 @@ namespace ns3
         buff[2] = 0; 
         buff[3] = 0;
 
-        buff[4] = destination_ip.Get();
-        buff[5] = 4002; // ! Does it have any special meaning? (Copied from dummy_client.cc)
+        buff[4] = Ipv4Address(destination_ip.c_str()).Get();
+        buff[5] = 4002; 
         size_t offset = 6;
         
-        for (int idx = path.size()-1; idx >= 0; --idx) {
-            // todo: get as number from ip address
-            NS_LOG_INFO("ip adrress " << path[idx]);
-            int as_num = global_addr_to_AS[path[idx]];
-            NS_LOG_INFO("mapped as number is: " << as_num);
-            buff[offset++] = as_num;
+        // for (int idx = path.size()-1; idx >= 0; --idx) {
+        //     // todo: get as number from ip address
+        //     NS_LOG_INFO("ip adrress " << path[idx]);
+        //     int as_num = global_addr_to_AS[path[idx]];
+        //     NS_LOG_INFO("mapped as number is: " << as_num);
+        //     buff[offset++] = as_num;
+        // }
+        for (size_t i = 0; i < path.size(); ++i) {
+            buff[offset++] = std::stoi(path[i].substr(path[i].find("AS")+2));
         }
+
+
         for (int i=0; i<16; ++i) {
             buff[offset++] = 0;
         }
