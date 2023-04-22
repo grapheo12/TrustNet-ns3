@@ -267,7 +267,7 @@ namespace ns3{
         void ComputeGraph();
         bool isItMe(std::string entity);
         std::vector<std::string> GetPath(std::string startNode, std::string endNode);
-
+        void SendPath(Ptr<Socket> socket, Address dest, std::string path);
 
         uint16_t m_port;                 //!< Port on which we listen for incoming packets.
         Ptr<Socket> m_socket;            //!< IPv4 Socket

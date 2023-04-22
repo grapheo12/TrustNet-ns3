@@ -265,23 +265,19 @@ namespace ns3
                 std::string temp = ss.str();
 
                 // todo: change advertisement process into path response processing
-                if (temp.find("ad:") != std::string::npos) {
-                    NS_LOG_INFO("Dummy Client2 GIVEADS response: " << temp);
+                if (temp.find("path:") != std::string::npos) {
+                    NS_LOG_INFO("Dummy Client2 GIVEPATH response: " << temp);
                     
                     // * deserialize the advertisement packet
-                    std::string body = temp.substr(3);
-                    NameDBEntry* advertised_entry = NameDBEntry::FromAdvertisementStr(body);
-                    if (advertised_entry == nullptr) {
-                        NS_LOG_INFO("Advertisement parse error, skipping...");
-                        continue;
-                    }
-                    auto path = advertised_entry->td_path;
-                    auto origin_server = advertised_entry->origin_server; 
-                    
-                    delete advertised_entry;
+                    std::string body = temp.substr(5);
 
-                    if (switches_in_my_td.size() == 0){
-                        continue;
+                    
+                    std::vector<Ipv4Address> path;
+                    auto pos = body.find(",");
+                    while (pos != std::string::npos) {
+                        Ipv4Address toAdd = Ipv4Address(body.substr(0, pos).c_str());
+                        path.push_back(toAdd);
+                        body = body.substr(pos);
                     }
 
 

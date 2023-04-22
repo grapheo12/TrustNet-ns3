@@ -132,6 +132,16 @@ namespace ns3
         }
     }
 
+    
+    void
+    RIBPathComputer::SendPath(Ptr<Socket> socket, Address dest, std::string path) 
+    {
+        std::string str_repr = "path:" + path;
+        Ptr<Packet> p = Create<Packet>((const uint8_t *)str_repr.c_str(), str_repr.size());
+        NS_LOG_INFO("Send to client " << socket->SendTo(p, 0, dest));
+    }
+    
+
     void
     RIBPathComputer::HandleRead(Ptr<Socket> socket)
     {
@@ -161,8 +171,19 @@ namespace ns3
                     }
                     std::string client_name = root["client_name"].asString();
                     std::string dc_name = root["dc_name"].asString();
-                    // TODO: ComputePath API call here
 
+                    // TODO: ComputePath API call here
+                    std::vector<std::string> path_vec = GetPath(client_name, dc_name);
+
+                    std::string path = "";
+                    for (auto& ip : path_vec) {
+                        path.append(ip + ",");
+                    }
+                    // path = path.substr(0, path.size()-1); // trim the last ","
+
+
+                    // * Send the path to the client
+                    SendPath(socket, from, path);
                 }                
 
                 // NS_LOG_INFO("Received link state packet: " << seqTs.GetSeq() << " " << seqTs.GetTs());
