@@ -391,8 +391,10 @@ main(int argc, char* argv[])
     }
     // ! temporary solution for client to know the mapping between IP address and AS number
     // ! dummy client needs this information because in packet format, it is using AS number instead of IP address
-    
+
+    dummyClient2->my_ip = client.Get(0)->GetObject<Ipv4>()->GetAddress(1, 0).GetAddress();
     client.Get(0)->AddApplication(dummyClient2);
+
     ApplicationContainer dummyClientApp(dummyClient2);
 
     dummyClientApp.Start(Seconds(50.0));

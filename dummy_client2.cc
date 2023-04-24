@@ -298,6 +298,7 @@ namespace ns3
                     // * Send out the packet
                     std::string origin_server = path[path.size()-1];
                     NS_LOG_INFO("origin_server is: " << origin_server);
+                    path.pop_back();
                     Simulator::ScheduleNow(&DummyClient2::SendUsingPath, this, path, origin_server);
 
                 } else {
@@ -351,9 +352,9 @@ namespace ns3
          * 0          4           8           12             16 
          * |  Magic   | #hops     | curr hop  | content size |
          * |-------------------------------------------------|
-         * | dest ip  | dest port | hop 0     | hop 1        |
+         * | src ip   | src port  | dest ip   | dest port    |
          * |-------------------------------------------------|
-         * | hop 2    | hop 3     | hop 4     | ...          |
+         * | hop 0    | hop 1     | hop 2     | ...          |
          * |-------------------------------------------------|
          * | Hop Signature    (64 bytes)                     |
          * |                                                 |
@@ -362,15 +363,17 @@ namespace ns3
          * |-------------------------------------------------|
          * | Content .......                                 |
         */
-        uint32_t buff[(6+path.size()+16)];
-        buff[0] = PACKET_MAGIC;
+        uint32_t buff[(8+path.size()+16)];
+        buff[0] = PACKET_MAGIC_UP;
         buff[1] = (uint32_t) path.size();
         buff[2] = 0; 
         buff[3] = 0;
-
-        buff[4] = Ipv4Address(destination_ip.c_str()).Get();
-        buff[5] = 4002; 
-        size_t offset = 6;
+        
+        buff[4] = my_ip.Get();
+        buff[5] = CLIENT_REPLY_PORT;
+        buff[6] = Ipv4Address(destination_ip.c_str()).Get();
+        buff[7] = DCSERVER_ECHO_PORT;
+        size_t offset = 8;
         
         // for (int idx = path.size()-1; idx >= 0; --idx) {
         //     // todo: get as number from ip address
@@ -379,7 +382,7 @@ namespace ns3
         //     NS_LOG_INFO("mapped as number is: " << as_num);
         //     buff[offset++] = as_num;
         // }
-        for (size_t i = 0; i < path.size(); ++i) {
+        for (int i = 0; i < path.size(); ++i) {
             buff[offset++] = std::stoi(path[i].substr(path[i].find("AS")+2));
         }
 
@@ -387,7 +390,7 @@ namespace ns3
         for (int i=0; i<16; ++i) {
             buff[offset++] = 0;
         }
-        Ptr<Packet> p = Create<Packet>((uint8_t *)buff, (6+path.size()+16)*4); // 8+4 : the size of the seqTs header
+        Ptr<Packet> p = Create<Packet>((uint8_t *)buff, (8+path.size()+16)*4); // 8+4 : the size of the seqTs header
         p->AddHeader(seqTs);
 
         if ((switch_socket->Send(p)) >= 0)
@@ -423,19 +426,21 @@ namespace ns3
         
         
 
-        uint32_t buff[25];
-        buff[0] = PACKET_MAGIC;
+        uint32_t buff[27];
+        buff[0] = PACKET_MAGIC_UP;
         buff[1] = 3;
         buff[2] = 0;
         buff[3] = 0;
+        buff[4] = my_ip.Get();
+        buff[5] = CLIENT_REPLY_PORT;
         Ipv4Address addr("11.0.0.1");
-        buff[4] = addr.Get();
-        buff[5] = 4002;
-        buff[6] = 3;
-        buff[7] = 1;
-        buff[8] = 2;
+        buff[6] = addr.Get();
+        buff[7] = DCSERVER_ECHO_PORT;
+        buff[8] = 3;
+        buff[9] = 1;
+        buff[10] = 2;
         for (int i = 0; i < 16; i++){ // * signature is all 0 for dummy client
-            buff[9 + i] = 0;
+            buff[11 + i] = 0;
         }
         Ptr<Packet> p = Create<Packet>((uint8_t *)buff, 100); // 8+4 : the size of the seqTs header
         p->AddHeader(seqTs);

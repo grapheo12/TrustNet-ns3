@@ -31,8 +31,10 @@
 #define OVERLAY_FWD 3004
 #define RIBCERTSTORE_PORT 3005
 #define RIBPATHCOMPUTER_PORT 3006
-#define PACKET_MAGIC 0xdeadface
-
+#define DCSERVER_ECHO_PORT 3007
+#define CLIENT_REPLY_PORT 3008
+#define PACKET_MAGIC_UP 0xdeadface
+#define PACKET_MAGIC_DOWN 0xcafebabe
 
 using namespace ns3;
 
@@ -421,6 +423,7 @@ namespace ns3{
         std::set<Ipv4Address> switches_in_my_td;
         std::set<std::string> dcnames_to_route;
         std::map<Address, int> peers_to_ASNum;
+        Ipv4Address my_ip;
 
     protected:
         void DoDispose() override;

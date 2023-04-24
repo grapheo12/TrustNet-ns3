@@ -234,7 +234,7 @@ namespace ns3
         SeqTsHeader seqTs;
         seqTs.SetSeq(m_sent);
         uint32_t buff[25];
-        buff[0] = PACKET_MAGIC;
+        buff[0] = PACKET_MAGIC_UP;
         buff[1] = 3;
         buff[2] = 0;
         buff[3] = 0;

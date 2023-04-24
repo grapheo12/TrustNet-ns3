@@ -137,9 +137,9 @@ namespace ns3
      * 0          4           8           12             16 
      * |  Magic   | #hops     | curr hop  | content size |
      * |-------------------------------------------------|
-     * | dest ip  | dest port | hop 0     | hop 1        |
+     * | src ip   | src port  | dest ip   | dest port    |
      * |-------------------------------------------------|
-     * | hop 2    | hop 3     | hop 4     | ...          |
+     * | hop 0    | hop 1     | hop 2     | ...          |
      * |-------------------------------------------------|
      * | Hop Signature    (64 bytes)                     |
      * |                                                 |
@@ -178,7 +178,7 @@ namespace ns3
                     continue;
                 }
 
-                if (buff[0] != PACKET_MAGIC){
+                if (buff[0] != PACKET_MAGIC_UP && buff[0] != PACKET_MAGIC_DOWN){
                     delete[] buff;
                     continue;
                 }
@@ -186,35 +186,69 @@ namespace ns3
                 uint32_t hop_cnt = buff[1];
                 uint32_t curr_hop = buff[2];
                 uint32_t content_sz = buff[3];
-                if (sz < 24 + 4 * hop_cnt + 64 + content_sz){
+                if (sz < 32 + 4 * hop_cnt + 64 + content_sz){
                     delete[] buff;
                     continue;
                 }
-                if (curr_hop >= hop_cnt || buff[6 + curr_hop] != td_num){
+                if (buff[0] == PACKET_MAGIC_UP &&
+                    (curr_hop >= hop_cnt || buff[8 + curr_hop] != td_num)){
                     delete[] buff;
                     continue;
                 }
-                buff[2]++;
-                if (buff[2] == hop_cnt){
-                    Ipv4Address final_dest(buff[4]);
-                    uint32_t final_port = buff[5];
-                    NS_LOG_INFO("Last Mile Delivery to: " << final_dest << ":" << final_port);
+                if (buff[0] == PACKET_MAGIC_DOWN &&
+                    (buff[8 + curr_hop] != td_num)){
                     delete[] buff;
                     continue;
                 }
-                auto it = oswitch_in_other_td.find(buff[6 + buff[2]]);
-                if (it == oswitch_in_other_td.end() || it->second.size() == 0){
-                    delete[] buff;
-                    continue;
-                }
-                Address next_hop_addr = *(it->second.begin());      // TODO: Do round robin here.
 
-                Ptr<Packet> fwdPacket = Create<Packet>((const uint8_t *)buff, sz);
-                fwdPacket->AddHeader(seqTs);
+                if (buff[0] == PACKET_MAGIC_UP){
+                    // Go forward in hops
+                    buff[2]++;
+                    if (buff[2] == hop_cnt){
+                        Ipv4Address final_dest(buff[6]);
+                        uint32_t final_port = buff[7];
+                        NS_LOG_INFO("Last Mile Delivery to: " << final_dest << ":" << final_port);
+                        delete[] buff;
+                        continue;
+                    }
+                    auto it = oswitch_in_other_td.find(buff[8 + buff[2]]);
+                    if (it == oswitch_in_other_td.end() || it->second.size() == 0){
+                        delete[] buff;
+                        continue;
+                    }
+                    Address next_hop_addr = *(it->second.begin());      // TODO: Do round robin here.
 
-                NS_LOG_INFO("Forwarding to AS: " << buff[6 + buff[2]]);
-                Simulator::ScheduleNow(&OverlaySwitchForwardingEngine::ForwardPacket, this, next_hop_addr, OVERLAY_FWD, fwdPacket);
-                delete[] buff;
+                    Ptr<Packet> fwdPacket = Create<Packet>((const uint8_t *)buff, sz);
+                    fwdPacket->AddHeader(seqTs);
+
+                    NS_LOG_INFO("Forwarding to AS: " << buff[8 + buff[2]]);
+                    Simulator::ScheduleNow(&OverlaySwitchForwardingEngine::ForwardPacket, this, next_hop_addr, OVERLAY_FWD, fwdPacket);
+                    delete[] buff;
+                }else{
+                    // Go backward in hops
+                    if (buff[2] == 0){
+                        Ipv4Address final_dest(buff[4]);
+                        uint32_t final_port = buff[5];
+                        NS_LOG_INFO("Last Mile Delivery to: " << final_dest << ":" << final_port);
+                        delete[] buff;
+                        continue;
+                    }
+                    buff[2]--;
+                    auto it = oswitch_in_other_td.find(buff[8 + buff[2]]);
+                    if (it == oswitch_in_other_td.end() || it->second.size() == 0){
+                        delete[] buff;
+                        continue;
+                    }
+                    Address next_hop_addr = *(it->second.begin());      // TODO: Do round robin here.
+
+                    Ptr<Packet> fwdPacket = Create<Packet>((const uint8_t *)buff, sz);
+                    fwdPacket->AddHeader(seqTs);
+
+                    NS_LOG_INFO("Forwarding to AS: " << buff[8 + buff[2]]);
+                    Simulator::ScheduleNow(&OverlaySwitchForwardingEngine::ForwardPacket, this, next_hop_addr, OVERLAY_FWD, fwdPacket);
+                    delete[] buff;
+                }
+                
                 
 
                 m_lossCounter.NotifyReceived(currentSequenceNumber);
