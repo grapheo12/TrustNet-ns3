@@ -197,6 +197,7 @@ main(int argc, char* argv[])
     LogComponentEnable("DummyClient", LOG_LEVEL_ALL);
     LogComponentEnable("DummyClient2", LOG_LEVEL_ALL);
     LogComponentEnable("DCOwner", LOG_LEVEL_ALL);
+    LogComponentEnable("DCEchoServer", LOG_LEVEL_ALL);
     LogComponentEnable("TrustNet_Main", LOG_LEVEL_ALL);
 
     // BRITE needs a configuration file to build its graph. By default, this

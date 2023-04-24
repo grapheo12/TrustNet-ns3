@@ -97,6 +97,45 @@ namespace ns3{
     #endif                               // NS3_LOG_ENABLE
     };
 
+    class DCEchoServer: public Application
+    {
+    public:
+        static TypeId GetTypeId();
+        DCEchoServer();
+        ~DCEchoServer() override;
+        uint32_t GetLost() const;
+        uint64_t GetReceived() const;
+        uint16_t GetPacketWindowSize() const;
+        void SetPacketWindowSize(uint16_t size);
+        Address my_rib;
+
+    protected:
+        void DoDispose() override;
+
+    private:
+        void StartApplication() override;
+        void StopApplication() override;
+        void HandleRead(Ptr<Socket> socket);
+        void HandleSwitch(Ptr<Socket> socket);
+        bool isSwitchSet;
+        Ptr<Socket> switch_socket;
+        Ptr<Socket> reply_socket;
+        std::set<Ipv4Address> switches_in_my_td;
+
+        uint16_t m_port;                 //!< Port on which we listen for incoming packets.
+        Ptr<Socket> m_socket;            //!< IPv4 Socket
+        Ptr<Socket> m_socket6;           //!< IPv6 Socket
+        uint64_t m_received;             //!< Number of received packets
+        PacketLossCounter m_lossCounter; //!< Lost packet counter
+
+        /// Callbacks for tracing the packet Rx events
+        TracedCallback<Ptr<const Packet>> m_rxTrace;
+
+        /// Callbacks for tracing the packet Rx events, includes source and destination addresses
+        TracedCallback<Ptr<const Packet>, const Address&, const Address&> m_rxTraceWithAddresses;
+
+    };
+
 
     // Sends all the certs then dies.
     class DCOwner: public Application
@@ -437,6 +476,7 @@ namespace ns3{
         void GetPath();
         void HandleSwitch(Ptr<Socket> sock);
         void PledgeAllegiance();
+        void HandleDCResponse(Ptr<Socket> sock);
 
         uint32_t m_count; //!< Maximum number of packets the application will send
         Time m_interval;  //!< Packet inter-send time
@@ -448,6 +488,7 @@ namespace ns3{
         Ptr<Socket> m_socket;  //!< Socket
         Ptr<Socket> path_computer_socket;
         Ptr<Socket> switch_socket;
+        Ptr<Socket> reply_socket;
         Address m_peerAddress; //!< Remote peer address
         uint16_t m_peerPort;   //!< Remote peer port
         EventId m_sendEvent;   //!< Event to send the next packet
@@ -519,6 +560,7 @@ class DCServer
 {
     public:
         Ptr<DCServerAdvertiser> advertiser;
+        Ptr<DCEchoServer> echoServer;
         Address my_addr;
         Address rib_addr;
         Address switch_addr;
@@ -529,6 +571,7 @@ class DCServer
 
     private:
         ns3::ObjectFactory advertiserFactory;
+        ns3::ObjectFactory echoServerFactory;
 };
 
 

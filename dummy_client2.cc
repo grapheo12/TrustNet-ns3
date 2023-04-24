@@ -86,7 +86,44 @@ namespace ns3
         NS_LOG_FUNCTION(this);
         Application::DoDispose();
     }
+    void
+    DummyClient2::HandleDCResponse(Ptr<Socket> sock)
+    {
+        Ptr<Packet> packet;
+        Address from;
+        while ((packet = sock->RecvFrom(from))){
+            if (packet->GetSize() > 0){
+                uint32_t receivedSize = packet->GetSize();
+                SeqTsHeader seqTs;
+                packet->RemoveHeader(seqTs);
+                uint32_t currentSequenceNumber = seqTs.GetSeq();
+                if (receivedSize < 16){
+                    continue;
+                }
+                uint32_t *buff = new uint32_t[receivedSize / sizeof(uint32_t) + 2];
+                uint32_t sz = packet->CopyData((uint8_t *)buff, receivedSize);
+                if (sz < 16){
+                    delete[] buff;
+                    continue;
+                }
+                uint32_t content_sz = buff[3];
+                uint32_t hop_cnt = buff[1];
 
+                if (32 + 4 * hop_cnt + 64 + content_sz > sz){
+                    delete[] buff;
+                    continue;
+                }
+
+                if (content_sz > 0){
+                    char *content = (char *)(buff + 32 + 4 * hop_cnt + 64);
+                    std::string content_str = std::string(content, content_sz);
+                    NS_LOG_INFO("Received reply from DC: " << content_str);
+                }else{
+                    NS_LOG_INFO("Received Empty reply from DC");
+                }
+            }
+        }
+    }
     void
     DummyClient2::StartApplication()
     {
@@ -96,6 +133,14 @@ namespace ns3
         {
             TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
             m_socket = Socket::CreateSocket(GetNode(), tid);
+            reply_socket = Socket::CreateSocket(GetNode(), tid);
+            InetSocketAddress local = InetSocketAddress(Ipv4Address::GetAny(), CLIENT_REPLY_PORT);
+            if (reply_socket->Bind(local) == -1)
+            {
+                NS_FATAL_ERROR("Failed to bind socket");
+            }
+            reply_socket->SetRecvCallback(MakeCallback(&DummyClient2::HandleDCResponse, this));
+
             if (Ipv4Address::IsMatchingType(m_peerAddress) == true)
             {
                 if (m_socket->Bind() == -1)
@@ -164,6 +209,7 @@ namespace ns3
         if (!path_computer_socket){
             TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
             path_computer_socket = Socket::CreateSocket(GetNode(), tid);
+            path_computer_socket->Bind();
 
             path_computer_socket->Connect(
                 InetSocketAddress(Ipv4Address::ConvertFrom(m_peerAddress), RIBPATHCOMPUTER_PORT));

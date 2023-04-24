@@ -208,6 +208,9 @@ namespace ns3
                         Ipv4Address final_dest(buff[6]);
                         uint32_t final_port = buff[7];
                         NS_LOG_INFO("Last Mile Delivery to: " << final_dest << ":" << final_port);
+                        Ptr<Packet> fwdPacket = Create<Packet>((const uint8_t *)buff, sz);
+                        fwdPacket->AddHeader(seqTs);
+                        ForwardPacket(final_dest, final_port, fwdPacket);
                         delete[] buff;
                         continue;
                     }
@@ -230,6 +233,9 @@ namespace ns3
                         Ipv4Address final_dest(buff[4]);
                         uint32_t final_port = buff[5];
                         NS_LOG_INFO("Last Mile Delivery to: " << final_dest << ":" << final_port);
+                        Ptr<Packet> fwdPacket = Create<Packet>((const uint8_t *)buff, sz);
+                        fwdPacket->AddHeader(seqTs);
+                        ForwardPacket(final_dest, final_port, fwdPacket);
                         delete[] buff;
                         continue;
                     }
@@ -275,7 +281,12 @@ namespace ns3
         }else{
             __sock = it->second;
         }
-        __sock->Send(what);
+        if (__sock->Send(what) == -1){
+            NS_LOG_INFO("Last mile forward failed");
+        }else{
+            NS_LOG_INFO("Delivery complete");
+        }
+
     }
 
     void
