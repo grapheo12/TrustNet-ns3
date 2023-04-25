@@ -366,7 +366,7 @@ namespace ns3
             for (std::string& x: path){
                 ss << x << " -> ";
             }
-            int dist = trust_graph.__distMatrix[{trust_graph.nodes_to_id["user:1"], trust_graph.nodes_to_id["AS7"]}].first;
+            int dist = trust_graph.__distMatrix[{trust_graph.nodes_to_id["user:1"], trust_graph.nodes_to_id["AS9"]}].first;
             NS_LOG_INFO("Dummy Path: " << ss.str() << "Length: " << dist);
         }
     }
@@ -400,7 +400,9 @@ namespace ns3
         for (int i = pathLength; i >= 0; i--){
             // NS_LOG_INFO("Curr: " << curr << trust_graph.id_to_nodes[curr] << i);
             ans[i] += trust_graph.id_to_nodes[curr];
-            // NS_LOG_INFO("ljgkrjgkg " << ans[i]);
+            // std::stringstream ss;
+            // ss << "ljgkrjgkg " << trust_graph.__distMatrix[{startId, curr}].first << " " << trust_graph.__distMatrix[{startId, curr}].second;
+            // NS_LOG_INFO(ss.str());
             curr = trust_graph.__distMatrix[{startId, curr}].second;
         }
 
@@ -414,7 +416,7 @@ Graph::FloydWarshall()
     for (int i = 0; i < __node_cnt; i++){
         for (int j = 0; j < __node_cnt; j++){
             if (i == j){
-                __distMatrix[{i, j}] = {0, j};
+                __distMatrix[{i, j}] = {0, i};
             }else{
                 __distMatrix[{i, j}] = {INT_MAX, -1};
             }
@@ -428,9 +430,9 @@ Graph::FloydWarshall()
     }
 
 
-    for (int i = 0; i < __node_cnt; i++){
-        for (int j = 0; j < __node_cnt; j++){
-            for (int k = 0; k < __node_cnt; k++){
+    for (int k = 0; k < __node_cnt; k++){
+        for (int i = 0; i < __node_cnt; i++){
+            for (int j = 0; j < __node_cnt; j++){
                 long dist_ij = __distMatrix[{i, j}].first;
                 long dist_ik = __distMatrix[{i, k}].first;
                 long dist_kj = __distMatrix[{k, j}].first;
@@ -440,13 +442,18 @@ Graph::FloydWarshall()
                 }
                 
             }
+        }
 
-            // If (i, j) is a distrust edge, reset the distance to Infinite
-            if (distrust_edges.find({i, j}) != distrust_edges.end()){
-                __distMatrix[{i, j}] = {INT_MAX, -1};
+        // If (i, j) is a distrust edge, reset the distance to Infinite
+        for (int i = 0; i < __node_cnt; i++){
+            for (int j = 0; j < __node_cnt; j++){
+                if (distrust_edges.find({i, j}) != distrust_edges.end()){
+                    __distMatrix[{i, j}] = {INT_MAX, -1};
+                }
             }
         }
     }
+    
 
     NS_LOG_INFO("Floyd Warshall over");
 }
