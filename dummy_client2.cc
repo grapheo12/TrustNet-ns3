@@ -252,6 +252,18 @@ namespace ns3
         cert_socket->Send(p);
         NS_LOG_INFO("Pledged Allegiance to my RIB");
 
+        // Dummy Distrust AS0
+
+        root["type"] = "distrust";
+        root["entity"] = "AS0";
+        Json::StyledWriter jw2;
+        body = jw2.write(root);
+        Ptr<Packet> p2 = Create<Packet>((const uint8_t *)body.c_str(), body.size());
+        p2->AddHeader(seqTs);
+        cert_socket->Send(p2);
+        NS_LOG_INFO("Distrust relation addded to AS0");
+        
+
 
         cert_socket->Close();
 

@@ -361,7 +361,7 @@ namespace ns3
 
         trust_graph.FloydWarshall();
         if (trust_graph.nodes_to_id.find("user:1") != trust_graph.nodes_to_id.end()){
-            auto path = GetPath("user:1", "AS7");
+            auto path = GetPath("user:1", "AS9");
             std::stringstream ss;
             for (std::string& x: path){
                 ss << x << " -> ";
