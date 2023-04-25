@@ -439,7 +439,14 @@ namespace ns3
         buff[7] = DCSERVER_ECHO_PORT;
         size_t offset = 8;
         
-        for (int i = 0; i < (int)path.size(); ++i) {
+        // for (int idx = path.size()-1; idx >= 0; --idx) {
+        //     // todo: get as number from ip address
+        //     NS_LOG_INFO("ip adrress " << path[idx]);
+        //     int as_num = global_addr_to_AS[path[idx]];
+        //     NS_LOG_INFO("mapped as number is: " << as_num);
+        //     buff[offset++] = as_num;
+        // }
+        for (size_t i = 0; i < path.size(); ++i) {
             buff[offset++] = std::stoi(path[i].substr(path[i].find("AS")+2));
         }
 
