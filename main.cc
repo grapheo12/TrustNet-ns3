@@ -4,15 +4,18 @@
 
 #define TOPOLOGY_SUBNET "10.0.0.0"
 #define SERVER_SUBNET   "11.0.0.0"
-#define CLIENT_SUBNET   "9.0.0.0"
+#define CLIENT_SUBNET(x)   "9." x ".0.0"
+#define CLIENT_NAME(x)  client##x
 #define SWITCH_SUBNET   "8.0.0.0"
 #define COMMON_MASK     "255.255.255.0"
+#define DCSERVER_AS     1
+#define GLOBAL_STOP_TIME 250.0
 
 #define BUILD_P2P(name, as, addr)    NodeContainer name;\
 name.Create(1);\
 stack.Install(name);\
-int numLeafNodesInAs##as = bth.GetNLeafNodesForAs((as));\
-name.Add(bth.GetLeafNodeForAs((as), numLeafNodesInAs##as - 1));\
+int numLeafNodesInAs##as##name = bth.GetNLeafNodesForAs((as));\
+name.Add(bth.GetLeafNodeForAs((as), numLeafNodesInAs##as##name - 1));\
 p2p.SetDeviceAttribute("DataRate", StringValue("5Mbps"));\
 p2p.SetChannelAttribute("Delay", StringValue("2ms"));\
 NetDeviceContainer p2p##name##Devices;\
@@ -21,6 +24,24 @@ address.SetBase(addr, "255.255.0.0");\
 Ipv4InterfaceContainer name##Interfaces;\
 name##Interfaces = address.Assign(p2p##name##Devices);
 
+
+#define BUILD_CLIENT(id, name, factory, appContainer)    {\
+Ptr<DummyClient2> dummyClient2 = factory.Create<DummyClient2>();\
+dummyClient2->SetRemote(ribs.first[(id)]->my_addr, RIBADSTORE_PORT);\
+dummyClient2->SetAttribute("MaxPackets", UintegerValue(100));\
+dummyClient2->SetAttribute("Interval", TimeValue(Seconds(1.)));\
+dummyClient2->SetAttribute("PacketSize", UintegerValue(1024));\
+dummyClient2->SetAttribute("Name", StringValue(name));\
+for (auto str : generated_names) {\
+    dummyClient2->dcnames_to_route.insert("fogrobotics:" + str);\
+}\
+for (auto& ref : dummyClient2->dcnames_to_route) {\
+    NS_LOG_INFO("DC name dummy client 2 will try to send message: " << ref);\
+}\
+dummyClient2->my_ip = CLIENT_NAME(id).Get(0)->GetObject<Ipv4>()->GetAddress(1, 0).GetAddress();\
+CLIENT_NAME(id).Get(0)->AddApplication(dummyClient2);\
+appContainer.Add(dummyClient2);\
+}
 
 NS_LOG_COMPONENT_DEFINE("TrustNet_Main");
 
@@ -240,12 +261,19 @@ main(int argc, char* argv[])
     NS_LOG_INFO("Number of AS created " << bth.GetNAs());
     std::map<std::string, int> addr_map;
 
-    BUILD_P2P(dcStore, 1, "11.1.0.0")
+    BUILD_P2P(dcStore, DCSERVER_AS, "11.1.0.0")
 
-    BUILD_P2P(client, 3, "11.2.0.0")
+    BUILD_P2P(client2, 2, CLIENT_SUBNET("2"));
+    BUILD_P2P(client3, 3, CLIENT_SUBNET("3"));
+    BUILD_P2P(client4, 4, CLIENT_SUBNET("4"));
+    BUILD_P2P(client5, 5, CLIENT_SUBNET("5"));
+    BUILD_P2P(client6, 6, CLIENT_SUBNET("6"));
+    BUILD_P2P(client7, 7, CLIENT_SUBNET("7"));
+    BUILD_P2P(client8, 8, CLIENT_SUBNET("8"));
+    BUILD_P2P(client9, 9, CLIENT_SUBNET("9"));
 
     // Same AS as the DCServerAdvertiser below.
-    BUILD_P2P(dcOwner, 9, "11.3.0.0")
+    BUILD_P2P(dcOwner, DCSERVER_AS, "11.3.0.0")
 
 
     address.SetBase(SERVER_SUBNET, COMMON_MASK); // * 1 server per AS
@@ -258,7 +286,7 @@ main(int argc, char* argv[])
         bth, stack, address, 0.1
     );
 
-    auto ribs = installRIBs(serverAssgn, Seconds(0.5), Seconds(600.0), &addr_map);
+    auto ribs = installRIBs(serverAssgn, Seconds(0.5), Seconds(GLOBAL_STOP_TIME), &addr_map);
 
     // * add peers to each RIB
     // assignRandomASPeers(ribs.first);
@@ -311,7 +339,7 @@ main(int argc, char* argv[])
     ApplicationContainer dcoApp(dco);
 
 
-    DCServer dcs(dcStoreInterfaces.GetAddress(0), ribs.first[9]->my_addr);
+    DCServer dcs(dcStoreInterfaces.GetAddress(0), ribs.first[DCSERVER_AS]->my_addr);
     ApplicationContainer dcApps(dcs.Install(dcStore.Get(0)));
 
     std::set<std::string> generated_names;
@@ -354,53 +382,27 @@ main(int argc, char* argv[])
 
 
     dcoApp.Start(Seconds(13.0));
-    dcoApp.Stop(Seconds(600.0));
+    dcoApp.Stop(Seconds(GLOBAL_STOP_TIME));
 
     dcApps.Start(Seconds(30.0));
-    dcApps.Stop(Seconds(600.0));
+    dcApps.Stop(Seconds(GLOBAL_STOP_TIME));
 
-    auto switches = installSwitches(switchAssgn, serverAssgn, Seconds(0.9), Seconds(600.0));
+    auto switches = installSwitches(switchAssgn, serverAssgn, Seconds(0.9), Seconds(GLOBAL_STOP_TIME));
 
-    // ns3::ObjectFactory clientFactory;
-    // clientFactory.SetTypeId(DummyClient::GetTypeId());
-    // Ptr<DummyClient> dummyClient = clientFactory.Create<DummyClient>();
-    // dummyClient->SetRemote(ribs.first[3]->my_addr, RIBADSTORE_PORT);
-    // dummyClient->SetAttribute("MaxPackets", UintegerValue(100));
-    // dummyClient->SetAttribute("Interval", TimeValue(Seconds(1.)));
-    // dummyClient->SetAttribute("PacketSize", UintegerValue(1024));
-    // client.Get(0)->AddApplication(dummyClient);
-    // ApplicationContainer dummyClientApp(dummyClient);
-
-    // dummyClientApp.Start(Seconds(16.0));
-    // dummyClientApp.Stop(Seconds(600.0));
 
     ns3::ObjectFactory clientFactory; 
     clientFactory.SetTypeId(DummyClient2::GetTypeId());
-    Ptr<DummyClient2> dummyClient2 = clientFactory.Create<DummyClient2>();
-    dummyClient2->SetRemote(ribs.first[3]->my_addr, RIBADSTORE_PORT);
-    dummyClient2->SetAttribute("MaxPackets", UintegerValue(100));
-    dummyClient2->SetAttribute("Interval", TimeValue(Seconds(1.)));
-    dummyClient2->SetAttribute("PacketSize", UintegerValue(1024));
-
-    // * set dcnames dummy Client 2 will send message to 
-    // dummyClient2->dcnames_to_route;
-    for (auto str : generated_names) {
-        dummyClient2->dcnames_to_route.insert("fogrobotics:" + str);
-    }
-    for (auto& ref : dummyClient2->dcnames_to_route) {
-        NS_LOG_INFO("DC name dummy client 2 will try to send message: " << ref);
-    }
-    // ! temporary solution for client to know the mapping between IP address and AS number
-    // ! dummy client needs this information because in packet format, it is using AS number instead of IP address
-
-    dummyClient2->my_ip = client.Get(0)->GetObject<Ipv4>()->GetAddress(1, 0).GetAddress();
-    client.Get(0)->AddApplication(dummyClient2);
-
-    ApplicationContainer dummyClientApp(dummyClient2);
-
-    dummyClientApp.Start(Seconds(50.0));
-    dummyClientApp.Stop(Seconds(600.0));
-
+    ApplicationContainer dummyClientApps;
+    BUILD_CLIENT(2, "user:2", clientFactory, dummyClientApps)
+    // BUILD_CLIENT(3, "user:3", clientFactory, dummyClientApps)
+    // 	BUILD_CLIENT(4, "user:4", clientFactory, dummyClientApps)
+    // BUILD_CLIENT(5, "user:5", clientFactory, dummyClientApps)
+    // BUILD_CLIENT(6, "user:6", clientFactory, dummyClientApps)
+    // BUILD_CLIENT(7, "user:7", clientFactory, dummyClientApps)
+    // BUILD_CLIENT(8, "user:8", clientFactory, dummyClientApps)
+    // BUILD_CLIENT(9, "user:9", clientFactory, dummyClientApps)
+    dummyClientApps.Start(Seconds(50.0));
+    dummyClientApps.Stop(Seconds(GLOBAL_STOP_TIME));
 
     MobilityHelper mh;
     mh.InstallAll();
@@ -456,7 +458,7 @@ main(int argc, char* argv[])
         p2p.EnableAsciiAll(ascii.CreateFileStream("briteLeaves.tr"));
     }
     // Run the simulator
-    Simulator::Stop(Seconds(600.0));
+    Simulator::Stop(Seconds(GLOBAL_STOP_TIME));
     Simulator::Run();
     Simulator::Destroy();
 

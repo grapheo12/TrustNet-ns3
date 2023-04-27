@@ -251,14 +251,15 @@ namespace ns3
                     delete[] buff;
                     continue;
                 }
-                NS_LOG_INFO("Echoing packet");
 
                 buff[0] = PACKET_MAGIC_DOWN;
                 buff[2] = buff[1] - 1;
 
                 Ptr<Packet> replyPacket = Create<Packet>((const uint8_t *)buff, sz);
+                NS_LOG_INFO("Echoing packet");
                 replyPacket->AddHeader(seqTs);
                 reply_socket->Send(replyPacket);
+                NS_LOG_INFO("Packet echo done");
 
                 if (InetSocketAddress::IsMatchingType(from))
                 {

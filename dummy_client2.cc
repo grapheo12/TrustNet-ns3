@@ -1,6 +1,9 @@
 #include "main.h"
 #include <string>
 #include <sstream>
+// #define DATAGRAM_SIZE (8+path.size()+16 + 2)
+#define DATAGRAM_SIZE 100
+
 
 namespace ns3
 {
@@ -96,7 +99,7 @@ namespace ns3
                 uint32_t receivedSize = packet->GetSize();
                 SeqTsHeader seqTs;
                 packet->RemoveHeader(seqTs);
-                uint32_t currentSequenceNumber = seqTs.GetSeq();
+                // uint32_t currentSequenceNumber = seqTs.GetSeq();
                 if (receivedSize < 16){
                     continue;
                 }
@@ -115,9 +118,10 @@ namespace ns3
                 }
 
                 if (content_sz > 0){
-                    char *content = (char *)(buff + 32 + 4 * hop_cnt + 64);
-                    std::string content_str = std::string(content, content_sz);
-                    NS_LOG_INFO("Received reply from DC: " << content_str);
+                    int64_t *content = (int64_t *)((char *)buff + 32 + 4 * hop_cnt + 64);
+                    int64_t timeNow = Simulator::Now().GetMicroSeconds();
+
+                    NS_LOG_INFO("Receive delay: " << timeNow - (*content) << " Hops: " << buff[1]);
                 }else{
                     NS_LOG_INFO("Received Empty reply from DC");
                 }
@@ -421,11 +425,13 @@ namespace ns3
          * |-------------------------------------------------|
          * | Content .......                                 |
         */
-        uint32_t buff[(8+path.size()+16)];
+        uint32_t buff[DATAGRAM_SIZE];
         buff[0] = PACKET_MAGIC_UP;
         buff[1] = (uint32_t) path.size();
         buff[2] = 0; 
-        buff[3] = 0;
+        buff[3] = 4 * (DATAGRAM_SIZE - (8+path.size()+16));
+
+        int64_t timeOfSending = Simulator::Now().GetMicroSeconds();
         
         buff[4] = my_ip.Get();
         buff[5] = CLIENT_REPLY_PORT;
@@ -433,14 +439,7 @@ namespace ns3
         buff[7] = DCSERVER_ECHO_PORT;
         size_t offset = 8;
         
-        // for (int idx = path.size()-1; idx >= 0; --idx) {
-        //     // todo: get as number from ip address
-        //     NS_LOG_INFO("ip adrress " << path[idx]);
-        //     int as_num = global_addr_to_AS[path[idx]];
-        //     NS_LOG_INFO("mapped as number is: " << as_num);
-        //     buff[offset++] = as_num;
-        // }
-        for (int i = 0; i < path.size(); ++i) {
+        for (int i = 0; i < (int)path.size(); ++i) {
             buff[offset++] = std::stoi(path[i].substr(path[i].find("AS")+2));
         }
 
@@ -448,7 +447,11 @@ namespace ns3
         for (int i=0; i<16; ++i) {
             buff[offset++] = 0;
         }
-        Ptr<Packet> p = Create<Packet>((uint8_t *)buff, (8+path.size()+16)*4); // 8+4 : the size of the seqTs header
+
+        memcpy(buff + offset, &timeOfSending, sizeof(int64_t));
+
+
+        Ptr<Packet> p = Create<Packet>((uint8_t *)buff, DATAGRAM_SIZE*4); // 8+4 : the size of the seqTs header
         p->AddHeader(seqTs);
 
         if ((switch_socket->Send(p)) >= 0)
@@ -469,7 +472,7 @@ namespace ns3
     #endif // NS3_LOG_ENABLE
 
         // m_sendEvent = Simulator::Schedule(m_interval, &DummyClient::Send, this);
-
+        Simulator::Schedule(Seconds(0.1), &DummyClient2::SendUsingPath, this, path, destination_ip);
         
     }
 
