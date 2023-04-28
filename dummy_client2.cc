@@ -472,7 +472,7 @@ namespace ns3
     #endif // NS3_LOG_ENABLE
 
         // m_sendEvent = Simulator::Schedule(m_interval, &DummyClient::Send, this);
-        Simulator::Schedule(Seconds(0.05), &DummyClient2::SendUsingPath, this, path, destination_ip);
+        Simulator::Schedule(Seconds(0.01), &DummyClient2::SendUsingPath, this, path, destination_ip);
         
     }
 
