@@ -361,7 +361,11 @@ namespace ns3
                     std::string origin_server = path[path.size()-1];
                     NS_LOG_INFO("origin_server is: " << origin_server);
                     path.pop_back();
-                    Simulator::ScheduleNow(&DummyClient2::SendUsingPath, this, path, origin_server);
+                    
+                    // ! For testing e2e, removing intermediate hops
+                    
+                    // Simulator::ScheduleNow(&DummyClient2::SendUsingPath, this, path, origin_server);
+                    Simulator::ScheduleNow(&DummyClient2::SendE2e, this, path[0], origin_server);
 
                 } else {
                     NS_LOG_INFO("Dummy Client2 GIVESWITCHES response: " << temp);
@@ -482,6 +486,98 @@ namespace ns3
         Simulator::Schedule(Seconds(0.01), &DummyClient2::SendUsingPath, this, path, destination_ip);
         
     }
+
+    void
+    DummyClient2::SendE2e(std::string& curr_hop, std::string& destination_ip)
+    {
+        NS_LOG_FUNCTION(this);
+        // NS_ASSERT(m_sendEvent.IsExpired());
+        // for (auto& s : path) {
+        //     NS_LOG_INFO("path components: " << s);
+        // }
+        SeqTsHeader seqTs;
+        seqTs.SetSeq(m_sent);
+        /**********************************************
+         * Packet format:
+         * 
+         * 0          4           8           12             16 
+         * |  Magic   | #hops     | curr hop  | content size |
+         * |-------------------------------------------------|
+         * | src ip   | src port  | dest ip   | dest port    |
+         * |-------------------------------------------------|
+         * | hop 0    | hop 1     | hop 2     | ...          |
+         * |-------------------------------------------------|
+         * | Hop Signature    (64 bytes)                     |
+         * |                                                 |
+         * |                                                 |
+         * |                                                 |
+         * |-------------------------------------------------|
+         * | Content .......                                 |
+        */
+        uint32_t buff[DATAGRAM_SIZE];
+        buff[0] = PACKET_MAGIC_UP;
+        // buff[1] = (uint32_t) path.size();
+        buff[1] = 1;
+        buff[2] = 0; 
+        buff[3] = 4 * (DATAGRAM_SIZE - (8+1+16));
+
+        int64_t timeOfSending = Simulator::Now().GetMicroSeconds();
+        
+        buff[4] = my_ip.Get();
+        buff[5] = CLIENT_REPLY_PORT;
+        buff[6] = Ipv4Address(destination_ip.c_str()).Get();
+        buff[7] = DCSERVER_ECHO_PORT;
+        size_t offset = 8;
+        
+        // for (int idx = path.size()-1; idx >= 0; --idx) {
+        //     // todo: get as number from ip address
+        //     NS_LOG_INFO("ip adrress " << path[idx]);
+        //     int as_num = global_addr_to_AS[path[idx]];
+        //     NS_LOG_INFO("mapped as number is: " << as_num);
+        //     buff[offset++] = as_num;
+        // }
+        // for (size_t i = 0; i < path.size(); ++i) {
+        //     buff[offset++] = std::stoi(path[i].substr(path[i].find("AS")+2));
+        // }
+        buff[offset++] = std::stoi(curr_hop.substr(curr_hop.find("AS")+2));
+
+
+        for (int i=0; i<16; ++i) {
+            buff[offset++] = 0;
+        }
+
+        memcpy(buff + offset, &timeOfSending, sizeof(int64_t));
+
+
+        Ptr<Packet> p = Create<Packet>((uint8_t *)buff, DATAGRAM_SIZE*4); // 8+4 : the size of the seqTs header
+        p->AddHeader(seqTs);
+
+        TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
+
+        if (sock_cache_.find(destination_ip) == sock_cache_.end()) {
+
+            sock_cache_[destination_ip] = Socket::CreateSocket(GetNode(), tid);
+            sock_cache_[destination_ip]->Connect(InetSocketAddress(Ipv4Address(destination_ip.c_str()), DCSERVER_ECHO_PORT));
+            
+        }
+        if ((sock_cache_[destination_ip]->Send(p)) >= 0)
+        {
+            ++m_sent;
+            m_totalTx += p->GetSize();
+            NS_LOG_INFO("e2e: Last Mile Delivery to: " << destination_ip << ":" << DCSERVER_ECHO_PORT);
+        }
+
+        
+    #ifdef NS3_LOG_ENABLE
+
+    #endif // NS3_LOG_ENABLE
+
+        // m_sendEvent = Simulator::Schedule(m_interval, &DummyClient::Send, this);
+        // Simulator::Schedule(Seconds(0.01), &DummyClient2::SendUsingPath, this, path, destination_ip);
+        Simulator::Schedule(Seconds(0.5), &DummyClient2::SendE2e, this, curr_hop, destination_ip);
+        
+    }
+
 
     void
     DummyClient2::Send()

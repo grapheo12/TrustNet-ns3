@@ -258,7 +258,18 @@ namespace ns3
                 Ptr<Packet> replyPacket = Create<Packet>((const uint8_t *)buff, sz);
                 NS_LOG_INFO("Echoing packet");
                 replyPacket->AddHeader(seqTs);
-                reply_socket->Send(replyPacket);
+                // reply_socket->Send(replyPacket);
+
+                // ! testing for e2e, setting up direct reverse path
+                if (sock_cache__.find(Ipv4Address(buff[4])) == sock_cache__.end()) {
+
+                    TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
+                    sock_cache__[Ipv4Address(buff[4])] = Socket::CreateSocket(GetNode(), tid);
+                    sock_cache__[Ipv4Address(buff[4])]->Bind();
+                    sock_cache__[Ipv4Address(buff[4])]->Connect(InetSocketAddress(Ipv4Address(buff[4]), CLIENT_REPLY_PORT));
+                }
+                sock_cache__[Ipv4Address(buff[4])]->Send(replyPacket);
+                
                 NS_LOG_INFO("Packet echo done");
 
                 if (InetSocketAddress::IsMatchingType(from))

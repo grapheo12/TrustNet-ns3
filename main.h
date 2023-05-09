@@ -121,6 +121,7 @@ namespace ns3{
         Ptr<Socket> switch_socket;
         Ptr<Socket> reply_socket;
         std::set<Ipv4Address> switches_in_my_td;
+        std::map<Ipv4Address, Ptr<Socket>> sock_cache__;
 
         uint16_t m_port;                 //!< Port on which we listen for incoming packets.
         Ptr<Socket> m_socket;            //!< IPv4 Socket
@@ -472,6 +473,7 @@ namespace ns3{
         void StopApplication() override;
         void Send();
         void SendUsingPath(std::vector<std::string>& path, std::string& destination_ip);
+        void SendE2e(std::string& curr_hop, std::string& destination_ip);
         void GetSwitch();
         void GetPath();
         void HandleSwitch(Ptr<Socket> sock);
@@ -492,6 +494,7 @@ namespace ns3{
         Address m_peerAddress; //!< Remote peer address
         uint16_t m_peerPort;   //!< Remote peer port
         EventId m_sendEvent;   //!< Event to send the next packet
+        std::map<std::string, Ptr<Socket>> sock_cache_;
         // EventId m_sendEvent2;
         
     #ifdef NS3_LOG_ENABLE
