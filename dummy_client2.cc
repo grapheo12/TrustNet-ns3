@@ -574,7 +574,7 @@ namespace ns3
 
         // m_sendEvent = Simulator::Schedule(m_interval, &DummyClient::Send, this);
         // Simulator::Schedule(Seconds(0.01), &DummyClient2::SendUsingPath, this, path, destination_ip);
-        Simulator::Schedule(Seconds(0.5), &DummyClient2::SendE2e, this, curr_hop, destination_ip);
+        Simulator::Schedule(Seconds(0.1), &DummyClient2::SendE2e, this, curr_hop, destination_ip);
         
     }
 
