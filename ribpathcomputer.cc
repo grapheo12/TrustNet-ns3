@@ -173,6 +173,7 @@ namespace ns3
                     }
                     std::string client_name = root["client_name"].asString();
                     std::string dc_name = root["dc_name"].asString();
+        
 
                     
                     RIB* rib = (RIB *) (this->parent_ctx);
@@ -182,9 +183,10 @@ namespace ns3
                         continue;
                     }
                     std::string dc_server_ip = ptr->second.first;
+            NS_LOG_INFO(""<< client_name <<" - " << dc_server_ip);
                     std::vector<std::string> path_vec = GetPath(client_name, dc_server_ip);
-
-                    
+            
+              NS_LOG_INFO("Parsing successfull=============================================" << path_vec.size()); 
                     std::string path = "";
                     for (auto& ip : path_vec) {
                         if (ip == "me") {
@@ -195,11 +197,16 @@ namespace ns3
                             path.append(ip + ",");
                         }
                     }
+
+            NS_LOG_INFO("Parsing successfull=============================================" << path); 
                     // * add the destination ip into the path
-                    path.append(path_vec[path_vec.size()-1]+",");
+                    if (path.size() == 0) 
+                        path.append(",");
+                    else
+                        path.append(path_vec[path_vec.size()-1]+",");
                     // path = path.substr(0, path.size()-1); // trim the last ","
 
-
+     
                     // * Send the path to the client
                     Simulator::ScheduleNow(&RIBPathComputer::SendPath, this, socket, from, path);
                     
@@ -388,6 +395,7 @@ namespace ns3
         int endId = trust_graph.nodes_to_id[endNode];
 
         if (trust_graph.__distMatrix[{startId, endId}].first == INT_MAX){
+            NS_LOG_INFO("Infinite path...");
             return ans;
         }
 

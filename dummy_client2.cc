@@ -335,6 +335,13 @@ namespace ns3
                     // * deserialize the advertisement packet
                     std::string body = temp.substr(5);
 
+                    // Check if empty path
+                    if (body == ",")
+                    {
+                        NS_LOG_INFO("Got empty path from RIBPathComputer, ignoring this useless response");
+                        continue;
+                    }
+
 
                     std::vector<std::string> path;
                     auto pos = body.find(",");
@@ -472,7 +479,7 @@ namespace ns3
     #endif // NS3_LOG_ENABLE
 
         // m_sendEvent = Simulator::Schedule(m_interval, &DummyClient::Send, this);
-        Simulator::Schedule(Seconds(0.01), &DummyClient2::SendUsingPath, this, path, destination_ip);
+        Simulator::Schedule(Seconds(0.5), &DummyClient2::SendUsingPath, this, path, destination_ip);
         
     }
 

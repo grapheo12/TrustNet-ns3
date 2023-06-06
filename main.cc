@@ -9,7 +9,7 @@
 #define SWITCH_SUBNET   "8.0.0.0"
 #define COMMON_MASK     "255.255.255.0"
 #define DCSERVER_AS     1
-#define GLOBAL_STOP_TIME 250.0
+#define GLOBAL_STOP_TIME 600.0
 
 #define BUILD_P2P(name, as, addr)    NodeContainer name;\
 name.Create(1);\
@@ -261,7 +261,10 @@ main(int argc, char* argv[])
     NS_LOG_INFO("Number of AS created " << bth.GetNAs());
     std::map<std::string, int> addr_map;
 
-    BUILD_P2P(dcStore, DCSERVER_AS, "11.1.0.0")
+    // ! Testing: Multiple DC servers in different domains
+    BUILD_P2P(dcStore1, 1, "11.1.0.0")
+    BUILD_P2P(dcStore2, 2, "11.2.0.0")
+    BUILD_P2P(dcStore3, 3, "11.4.0.0") // ! 11.3.0.0 is taken, so this is 11.4.0.0 for now. Need justification...
 
     BUILD_P2P(client2, 2, CLIENT_SUBNET("2"));
     BUILD_P2P(client3, 3, CLIENT_SUBNET("3"));
@@ -338,19 +341,26 @@ main(int argc, char* argv[])
     dcOwner.Get(0)->AddApplication(dco);
     ApplicationContainer dcoApp(dco);
 
+    // ! Installing DC servers applications on nodes
+    DCServer dcs1(dcStore1Interfaces.GetAddress(0), ribs.first[1]->my_addr);
+    ApplicationContainer dcApps1(dcs1.Install(dcStore1.Get(0)));
 
-    DCServer dcs(dcStoreInterfaces.GetAddress(0), ribs.first[DCSERVER_AS]->my_addr);
-    ApplicationContainer dcApps(dcs.Install(dcStore.Get(0)));
+    DCServer dcs2(dcStore2Interfaces.GetAddress(0), ribs.first[2]->my_addr);
+    ApplicationContainer dcApps2(dcs2.Install(dcStore2.Get(0)));
+
+    DCServer dcs3(dcStore3Interfaces.GetAddress(0), ribs.first[3]->my_addr);
+    ApplicationContainer dcApps3(dcs3.Install(dcStore3.Get(0)));
+
 
     std::set<std::string> generated_names;
-    for (int i = 0; i < 10; i++){
+    for (int i = 0; i < 1; i++){
         // creat advertisement packet
         Json::Value serializeRoot;
         std::string random_str = gen_random(256);
         generated_names.insert(random_str);
         serializeRoot["dc_name"] = random_str;
         
-        Ipv4Address origin_AS_addr = Ipv4Address::ConvertFrom(dcs.rib_addr);
+        Ipv4Address origin_AS_addr = Ipv4Address::ConvertFrom(dcs1.rib_addr);
         std::stringstream ss;
         origin_AS_addr.Print(ss);
         serializeRoot["origin_AS"] = ss.str();
@@ -358,7 +368,7 @@ main(int argc, char* argv[])
         
 
         // * add dc server's IP into the serialization because client needs it when sending packets
-        Ipv4Address origin_server_addr = Ipv4Address::ConvertFrom(dcs.my_addr);
+        Ipv4Address origin_server_addr = Ipv4Address::ConvertFrom(dcs1.my_addr);
         std::stringstream ss2;
         origin_server_addr.Print(ss2);
         serializeRoot["origin_server"] = ss2.str();
@@ -369,14 +379,89 @@ main(int argc, char* argv[])
         std::string advertisement = writer.write(serializeRoot);
         NS_LOG_INFO("advertisement to advertise is: " << advertisement);
         // add name to the name list to be advertised
-        dcs.advertiser->dcNameList.push_back(advertisement);
+        dcs1.advertiser->dcNameList.push_back(advertisement);
 
         DCOwner::CertInfo cinfo;
         cinfo.entity = ss2.str();
         cinfo.type = "trust";
         cinfo.r_transitivity = 100;
-        cinfo.rib_addr = dcs.rib_addr;
+        cinfo.rib_addr = dcs1.rib_addr;
         cinfo.issuer = random_str;
+        dco->certs_to_send.push_back(cinfo);
+    }
+
+    // ! Testing with multiple dc servers
+    for (const std::string& n : generated_names) {
+        // creat advertisement packet
+        Json::Value serializeRoot;
+        
+        
+        serializeRoot["dc_name"] = n;
+        
+        Ipv4Address origin_AS_addr = Ipv4Address::ConvertFrom(dcs2.rib_addr);
+        std::stringstream ss;
+        origin_AS_addr.Print(ss);
+        serializeRoot["origin_AS"] = ss.str();
+
+        
+
+        // * add dc server's IP into the serialization because client needs it when sending packets
+        Ipv4Address origin_server_addr = Ipv4Address::ConvertFrom(dcs2.my_addr);
+        std::stringstream ss2;
+        origin_server_addr.Print(ss2);
+        serializeRoot["origin_server"] = ss2.str();
+        
+        // NS_LOG_INFO("origin_as is: " << ss.str() << " origin_server is: " << ss2.str());
+        // serialize the packet
+        Json::StyledWriter writer;
+        std::string advertisement = writer.write(serializeRoot);
+        NS_LOG_INFO("advertisement to advertise is: " << advertisement);
+        // add name to the name list to be advertised
+        dcs2.advertiser->dcNameList.push_back(advertisement);
+
+        DCOwner::CertInfo cinfo;
+        cinfo.entity = ss2.str();
+        cinfo.type = "trust";
+        cinfo.r_transitivity = 100;
+        cinfo.rib_addr = dcs2.rib_addr;
+        cinfo.issuer = n;
+        dco->certs_to_send.push_back(cinfo);
+    }
+
+    for (const std::string& n : generated_names) {
+        // creat advertisement packet
+        Json::Value serializeRoot;
+        
+        
+        serializeRoot["dc_name"] = n;
+        
+        Ipv4Address origin_AS_addr = Ipv4Address::ConvertFrom(dcs3.rib_addr);
+        std::stringstream ss;
+        origin_AS_addr.Print(ss);
+        serializeRoot["origin_AS"] = ss.str();
+
+        
+
+        // * add dc server's IP into the serialization because client needs it when sending packets
+        Ipv4Address origin_server_addr = Ipv4Address::ConvertFrom(dcs3.my_addr);
+        std::stringstream ss2;
+        origin_server_addr.Print(ss2);
+        serializeRoot["origin_server"] = ss2.str();
+        
+        // NS_LOG_INFO("origin_as is: " << ss.str() << " origin_server is: " << ss2.str());
+        // serialize the packet
+        Json::StyledWriter writer;
+        std::string advertisement = writer.write(serializeRoot);
+        NS_LOG_INFO("advertisement to advertise is: " << advertisement);
+        // add name to the name list to be advertised
+        dcs3.advertiser->dcNameList.push_back(advertisement);
+
+        DCOwner::CertInfo cinfo;
+        cinfo.entity = ss2.str();
+        cinfo.type = "trust";
+        cinfo.r_transitivity = 100;
+        cinfo.rib_addr = dcs3.rib_addr;
+        cinfo.issuer = n;
         dco->certs_to_send.push_back(cinfo);
     }
 
@@ -384,8 +469,14 @@ main(int argc, char* argv[])
     dcoApp.Start(Seconds(13.0));
     dcoApp.Stop(Seconds(GLOBAL_STOP_TIME));
 
-    dcApps.Start(Seconds(30.0));
-    dcApps.Stop(Seconds(GLOBAL_STOP_TIME));
+    dcApps1.Start(Seconds(30.0));
+    dcApps1.Stop(Seconds(GLOBAL_STOP_TIME));
+
+    dcApps2.Start(Seconds(30.0));
+    dcApps2.Stop(Seconds(GLOBAL_STOP_TIME));
+
+    dcApps3.Start(Seconds(30.0));
+    dcApps3.Stop(Seconds(GLOBAL_STOP_TIME));
 
     auto switches = installSwitches(switchAssgn, serverAssgn, Seconds(0.9), Seconds(GLOBAL_STOP_TIME));
 
@@ -394,14 +485,14 @@ main(int argc, char* argv[])
     clientFactory.SetTypeId(DummyClient2::GetTypeId());
     ApplicationContainer dummyClientApps;
     BUILD_CLIENT(2, "user:2", clientFactory, dummyClientApps)
-    BUILD_CLIENT(3, "user:3", clientFactory, dummyClientApps)
-    BUILD_CLIENT(4, "user:4", clientFactory, dummyClientApps)
-    BUILD_CLIENT(5, "user:5", clientFactory, dummyClientApps)
-    BUILD_CLIENT(6, "user:6", clientFactory, dummyClientApps)
-    BUILD_CLIENT(7, "user:7", clientFactory, dummyClientApps)
-    BUILD_CLIENT(8, "user:8", clientFactory, dummyClientApps)
-    BUILD_CLIENT(9, "user:9", clientFactory, dummyClientApps)
-    dummyClientApps.Start(Seconds(50.0));
+    // BUILD_CLIENT(3, "user:3", clientFactory, dummyClientApps)
+    // BUILD_CLIENT(4, "user:4", clientFactory, dummyClientApps)
+    // BUILD_CLIENT(5, "user:5", clientFactory, dummyClientApps)
+    // BUILD_CLIENT(6, "user:6", clientFactory, dummyClientApps)
+    // BUILD_CLIENT(7, "user:7", clientFactory, dummyClientApps)
+    // BUILD_CLIENT(8, "user:8", clientFactory, dummyClientApps)
+    // BUILD_CLIENT(9, "user:9", clientFactory, dummyClientApps)
+    dummyClientApps.Start(Seconds(300.0));
     dummyClientApps.Stop(Seconds(GLOBAL_STOP_TIME));
 
     MobilityHelper mh;
