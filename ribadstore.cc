@@ -375,7 +375,7 @@ namespace ns3
                     if (is_origin_AS_for_curr_ad) {
                         auto [range_begin, range_end] = trust_relation_map.equal_range("fogrobotics:" + advertised_entry->dc_name);
                         for (auto it = range_begin; it != range_end; it++) {
-                            // check if "entity" is the data capsule name
+                            // check if "entity" is the data capsule server name
                             if (Ipv4Address((it->second.first).c_str()) == advertised_entry->origin_server) {
                                 trust_curr_AS = true;
                                 // * Attach trust from DC owner to current name to the advertisement
@@ -413,6 +413,8 @@ namespace ns3
                             && advertised_entry->trust_cert.r_transitivity == 0) ) {
                                 std::pair<std::string, int> __val = std::make_pair(advertised_entry->trust_cert.entity, advertised_entry->trust_cert.r_transitivity);
                                 rib->trustRelations->insert(std::make_pair(advertised_entry->trust_cert.issuer, __val));
+                                std::pair<std::string, int> __val2 = std::make_pair(advertised_entry->trust_cert.issuer, INT_MAX);
+                                rib->trustRelations->insert(std::make_pair(advertised_entry->trust_cert.entity, __val2));
                         }
 
                         if (advertised_entry->distrust_certs.size() != 0) {
