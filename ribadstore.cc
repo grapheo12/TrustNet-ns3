@@ -216,12 +216,10 @@ namespace ns3
             db[dc_name] = std::vector<NameDBEntry*>{ advertised };
             updated = true;
         } else {
-            auto iter = db.find(dc_name);
-
             // check if advertisement from this origin AS already exist
             std::vector<NameDBEntry*>& all_ads = db[dc_name];
             bool already_exist = false;
-            for (auto ad = all_ads.begin(); ad != all_ads.end(); ++iter) {
+            for (auto ad = all_ads.begin(); ad != all_ads.end(); ++ad) {
                 // if it does, update to have shorter path if possible
                 if ((*ad)->origin_AS_addr == advertised->origin_AS_addr) {
                     already_exist = true;
