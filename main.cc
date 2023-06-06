@@ -64,11 +64,11 @@ randomNodeAssignment(
     p2p.SetChannelAttribute("Delay", StringValue("2ms"));
 
     for (uint32_t i = 0; i < nas; i++){
-        uint32_t nleaf = bth.GetNLeafNodesForAs(i);
+        uint32_t nleaf = bth.GetNNodesForAs(i);
         uint32_t nserver = (uint32_t)(load_ratio * nleaf);
         if (nserver == 0) nserver++;
 
-        NS_LOG_INFO("AS: " << i << " Leaf Nodes: " << nleaf << " Nodes to create: " << nserver);
+        NS_LOG_INFO("AS: " << i << " Nodes: " << nleaf << " Nodes to create: " << nserver);
         std::default_random_engine eng;
         std::uniform_int_distribution<uint32_t> dist(0, nserver - 1);
 
@@ -80,7 +80,7 @@ randomNodeAssignment(
         for (uint32_t j = 0; j < nserver; j++){
             NodeContainer __nodes;
             __nodes.Add(servers.Get(j));
-            __nodes.Add(bth.GetLeafNodeForAs(i, dist(eng)));
+            __nodes.Add(bth.GetNodeForAs(i, dist(eng)));
             auto __p2pdevs = p2p.Install(__nodes);
             Ipv4InterfaceContainer __interfaces = address.Assign(__p2pdevs);
             interfaces.Add(__interfaces.Get(0));
