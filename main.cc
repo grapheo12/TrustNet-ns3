@@ -204,6 +204,46 @@ installSwitches(
     return std::make_pair(oswitches, apps);
 }
 
+void CreateAndEnqueueAds(const DCServer& dc_server, const std::string& dc_name) {
+    // creat advertisement packet
+    Json::Value serializeRoot;
+    serializeRoot["dc_name"] = dc_name;
+    
+    Ipv4Address origin_AS_addr = Ipv4Address::ConvertFrom(dc_server.rib_addr);
+    std::stringstream ss;
+    origin_AS_addr.Print(ss);
+    serializeRoot["origin_AS"] = ss.str();
+
+    //  add dc server's IP into the serialization because client needs it when sending packets
+    Ipv4Address origin_server_addr = Ipv4Address::ConvertFrom(dc_server.my_addr);
+    std::stringstream ss2;
+    origin_server_addr.Print(ss2);
+    serializeRoot["origin_server"] = ss2.str();
+    
+    // serialize the packet
+    Json::StyledWriter writer;
+    std::string advertisement = writer.write(serializeRoot);
+    NS_LOG_INFO("advertisement to advertise is: " << advertisement);
+    // add name to the name list to be advertised
+    dc_server.advertiser->dcNameList.push_back(advertisement);
+
+    
+}
+
+void CreateAndEnqueueCert(const DCServer& dc_server, const std::string& dc_name, Ptr<DCOwner> dc_owner) {
+    Ipv4Address origin_server_addr = Ipv4Address::ConvertFrom(dc_server.my_addr);
+    std::stringstream ss;
+    origin_server_addr.Print(ss);
+
+    DCOwner::CertInfo cinfo;
+    cinfo.entity = ss.str();
+    cinfo.type = "trust";
+    cinfo.r_transitivity = 100;
+    cinfo.rib_addr = dc_server.rib_addr;
+    cinfo.issuer = dc_name;
+    dc_owner->certs_to_send.push_back(cinfo);
+}
+
 
 int
 main(int argc, char* argv[])
@@ -224,7 +264,7 @@ main(int argc, char* argv[])
     // BRITE needs a configuration file to build its graph. By default, this
     // example will use the TD_ASBarabasi_RTWaxman.conf file. There are many others
     // which can be found in the BRITE/conf_files directory
-    std::string confFile = "scratch/trustnet-1/brite-conf.conf";
+    std::string confFile = "scratch/trustnet/brite-conf.conf";
     bool tracing = false;
     bool nix = true;
 
@@ -341,7 +381,7 @@ main(int argc, char* argv[])
     dcOwner.Get(0)->AddApplication(dco);
     ApplicationContainer dcoApp(dco);
 
-    // ! Installing DC servers applications on nodes
+    // ! Installing multiple DC servers
     DCServer dcs1(dcStore1Interfaces.GetAddress(0), ribs.first[1]->my_addr);
     ApplicationContainer dcApps1(dcs1.Install(dcStore1.Get(0)));
 
@@ -353,117 +393,95 @@ main(int argc, char* argv[])
 
 
     std::set<std::string> generated_names;
-    for (int i = 0; i < 1; i++){
-        // creat advertisement packet
-        Json::Value serializeRoot;
-        std::string random_str = gen_random(256);
-        generated_names.insert(random_str);
-        serializeRoot["dc_name"] = random_str;
-        
-        Ipv4Address origin_AS_addr = Ipv4Address::ConvertFrom(dcs1.rib_addr);
-        std::stringstream ss;
-        origin_AS_addr.Print(ss);
-        serializeRoot["origin_AS"] = ss.str();
+    for (int i = 0; i < 10; i++){
+        // generate new dc names
+        std::string random_dc_name = gen_random(256);
+        generated_names.insert(random_dc_name);
 
-        
+        CreateAndEnqueueAds(dcs1, random_dc_name);
+        CreateAndEnqueueCert(dcs1, random_dc_name, dco);
 
-        // * add dc server's IP into the serialization because client needs it when sending packets
-        Ipv4Address origin_server_addr = Ipv4Address::ConvertFrom(dcs1.my_addr);
-        std::stringstream ss2;
-        origin_server_addr.Print(ss2);
-        serializeRoot["origin_server"] = ss2.str();
-        
-        // NS_LOG_INFO("origin_as is: " << ss.str() << " origin_server is: " << ss2.str());
-        // serialize the packet
-        Json::StyledWriter writer;
-        std::string advertisement = writer.write(serializeRoot);
-        NS_LOG_INFO("advertisement to advertise is: " << advertisement);
-        // add name to the name list to be advertised
-        dcs1.advertiser->dcNameList.push_back(advertisement);
+        CreateAndEnqueueAds(dcs2, random_dc_name);
+        CreateAndEnqueueCert(dcs2, random_dc_name, dco);
 
-        DCOwner::CertInfo cinfo;
-        cinfo.entity = ss2.str();
-        cinfo.type = "trust";
-        cinfo.r_transitivity = 100;
-        cinfo.rib_addr = dcs1.rib_addr;
-        cinfo.issuer = random_str;
-        dco->certs_to_send.push_back(cinfo);
+        CreateAndEnqueueAds(dcs3, random_dc_name);
+        CreateAndEnqueueCert(dcs3, random_dc_name, dco);
     }
 
-    // ! Testing with multiple dc servers
-    for (const std::string& n : generated_names) {
-        // creat advertisement packet
-        Json::Value serializeRoot;
+    // // ! Testing with multiple dc servers
+    // for (const std::string& n : generated_names) {
+    //     // creat advertisement packet
+    //     Json::Value serializeRoot;
         
         
-        serializeRoot["dc_name"] = n;
+    //     serializeRoot["dc_name"] = n;
         
-        Ipv4Address origin_AS_addr = Ipv4Address::ConvertFrom(dcs2.rib_addr);
-        std::stringstream ss;
-        origin_AS_addr.Print(ss);
-        serializeRoot["origin_AS"] = ss.str();
+    //     Ipv4Address origin_AS_addr = Ipv4Address::ConvertFrom(dcs2.rib_addr);
+    //     std::stringstream ss;
+    //     origin_AS_addr.Print(ss);
+    //     serializeRoot["origin_AS"] = ss.str();
 
         
 
-        // * add dc server's IP into the serialization because client needs it when sending packets
-        Ipv4Address origin_server_addr = Ipv4Address::ConvertFrom(dcs2.my_addr);
-        std::stringstream ss2;
-        origin_server_addr.Print(ss2);
-        serializeRoot["origin_server"] = ss2.str();
+    //     // * add dc server's IP into the serialization because client needs it when sending packets
+    //     Ipv4Address origin_server_addr = Ipv4Address::ConvertFrom(dcs2.my_addr);
+    //     std::stringstream ss2;
+    //     origin_server_addr.Print(ss2);
+    //     serializeRoot["origin_server"] = ss2.str();
         
-        // NS_LOG_INFO("origin_as is: " << ss.str() << " origin_server is: " << ss2.str());
-        // serialize the packet
-        Json::StyledWriter writer;
-        std::string advertisement = writer.write(serializeRoot);
-        NS_LOG_INFO("advertisement to advertise is: " << advertisement);
-        // add name to the name list to be advertised
-        dcs2.advertiser->dcNameList.push_back(advertisement);
+    //     // NS_LOG_INFO("origin_as is: " << ss.str() << " origin_server is: " << ss2.str());
+    //     // serialize the packet
+    //     Json::StyledWriter writer;
+    //     std::string advertisement = writer.write(serializeRoot);
+    //     NS_LOG_INFO("advertisement to advertise is: " << advertisement);
+    //     // add name to the name list to be advertised
+    //     dcs2.advertiser->dcNameList.push_back(advertisement);
 
-        DCOwner::CertInfo cinfo;
-        cinfo.entity = ss2.str();
-        cinfo.type = "trust";
-        cinfo.r_transitivity = 100;
-        cinfo.rib_addr = dcs2.rib_addr;
-        cinfo.issuer = n;
-        dco->certs_to_send.push_back(cinfo);
-    }
+    //     DCOwner::CertInfo cinfo;
+    //     cinfo.entity = ss2.str();
+    //     cinfo.type = "trust";
+    //     cinfo.r_transitivity = 100;
+    //     cinfo.rib_addr = dcs2.rib_addr;
+    //     cinfo.issuer = n;
+    //     dco->certs_to_send.push_back(cinfo);
+    // }
 
-    for (const std::string& n : generated_names) {
-        // creat advertisement packet
-        Json::Value serializeRoot;
+    // for (const std::string& n : generated_names) {
+    //     // creat advertisement packet
+    //     Json::Value serializeRoot;
         
         
-        serializeRoot["dc_name"] = n;
+    //     serializeRoot["dc_name"] = n;
         
-        Ipv4Address origin_AS_addr = Ipv4Address::ConvertFrom(dcs3.rib_addr);
-        std::stringstream ss;
-        origin_AS_addr.Print(ss);
-        serializeRoot["origin_AS"] = ss.str();
+    //     Ipv4Address origin_AS_addr = Ipv4Address::ConvertFrom(dcs3.rib_addr);
+    //     std::stringstream ss;
+    //     origin_AS_addr.Print(ss);
+    //     serializeRoot["origin_AS"] = ss.str();
 
         
 
-        // * add dc server's IP into the serialization because client needs it when sending packets
-        Ipv4Address origin_server_addr = Ipv4Address::ConvertFrom(dcs3.my_addr);
-        std::stringstream ss2;
-        origin_server_addr.Print(ss2);
-        serializeRoot["origin_server"] = ss2.str();
+    //     // * add dc server's IP into the serialization because client needs it when sending packets
+    //     Ipv4Address origin_server_addr = Ipv4Address::ConvertFrom(dcs3.my_addr);
+    //     std::stringstream ss2;
+    //     origin_server_addr.Print(ss2);
+    //     serializeRoot["origin_server"] = ss2.str();
         
-        // NS_LOG_INFO("origin_as is: " << ss.str() << " origin_server is: " << ss2.str());
-        // serialize the packet
-        Json::StyledWriter writer;
-        std::string advertisement = writer.write(serializeRoot);
-        NS_LOG_INFO("advertisement to advertise is: " << advertisement);
-        // add name to the name list to be advertised
-        dcs3.advertiser->dcNameList.push_back(advertisement);
+    //     // NS_LOG_INFO("origin_as is: " << ss.str() << " origin_server is: " << ss2.str());
+    //     // serialize the packet
+    //     Json::StyledWriter writer;
+    //     std::string advertisement = writer.write(serializeRoot);
+    //     NS_LOG_INFO("advertisement to advertise is: " << advertisement);
+    //     // add name to the name list to be advertised
+    //     dcs3.advertiser->dcNameList.push_back(advertisement);
 
-        DCOwner::CertInfo cinfo;
-        cinfo.entity = ss2.str();
-        cinfo.type = "trust";
-        cinfo.r_transitivity = 100;
-        cinfo.rib_addr = dcs3.rib_addr;
-        cinfo.issuer = n;
-        dco->certs_to_send.push_back(cinfo);
-    }
+    //     DCOwner::CertInfo cinfo;
+    //     cinfo.entity = ss2.str();
+    //     cinfo.type = "trust";
+    //     cinfo.r_transitivity = 100;
+    //     cinfo.rib_addr = dcs3.rib_addr;
+    //     cinfo.issuer = n;
+    //     dco->certs_to_send.push_back(cinfo);
+    // }
 
 
     dcoApp.Start(Seconds(13.0));
@@ -490,7 +508,7 @@ main(int argc, char* argv[])
     // BUILD_CLIENT(5, "user:5", clientFactory, dummyClientApps)
     // BUILD_CLIENT(6, "user:6", clientFactory, dummyClientApps)
     // BUILD_CLIENT(7, "user:7", clientFactory, dummyClientApps)
-    // BUILD_CLIENT(8, "user:8", clientFactory, dummyClientApps)
+    BUILD_CLIENT(8, "user:8", clientFactory, dummyClientApps)
     // BUILD_CLIENT(9, "user:9", clientFactory, dummyClientApps)
     dummyClientApps.Start(Seconds(300.0));
     dummyClientApps.Stop(Seconds(GLOBAL_STOP_TIME));

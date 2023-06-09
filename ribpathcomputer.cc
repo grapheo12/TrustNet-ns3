@@ -183,10 +183,8 @@ namespace ns3
                         continue;
                     }
                     std::string dc_server_ip = ptr->second.first;
-            NS_LOG_INFO(""<< client_name <<" - " << dc_server_ip);
                     std::vector<std::string> path_vec = GetPath(client_name, dc_server_ip);
             
-              NS_LOG_INFO("Parsing successfull=============================================" << path_vec.size()); 
                     std::string path = "";
                     for (auto& ip : path_vec) {
                         if (ip == "me") {
@@ -198,7 +196,6 @@ namespace ns3
                         }
                     }
 
-            NS_LOG_INFO("Parsing successfull=============================================" << path); 
                     // * add the destination ip into the path
                     if (path.size() == 0) 
                         path.append(",");
