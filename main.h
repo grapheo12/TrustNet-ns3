@@ -33,6 +33,7 @@
 #define RIBPATHCOMPUTER_PORT 3006
 #define DCSERVER_ECHO_PORT 3007
 #define CLIENT_REPLY_PORT 3008
+#define OVERLAY_PROBER_PORT 3009
 #define PACKET_MAGIC_UP 0xdeadface
 #define PACKET_MAGIC_DOWN 0xcafebabe
 
@@ -246,6 +247,47 @@ namespace ns3{
     #endif  
     };
 
+    
+    class OverlaySwitchNeighborProber: public Application
+    {
+    public:
+        static TypeId GetTypeId();
+        OverlaySwitchNeighborProber();
+        ~OverlaySwitchNeighborProber() override;
+        uint64_t GetTotalTx() const;
+
+        void SimpliEchoBack(Ptr<Socket> socket, Address from, std::string& packet);
+        void SimpliEchoRequest(Ptr<Socket> socket, Address to);
+        std::unordered_map<int, std::pair<Address, int64_t>>& GetNearestPeerOSwitchMap();
+        void* parent_ctx;
+
+    protected:
+        void DoDispose() override;
+
+    private:
+        void StartApplication() override;
+        void StopApplication() override;
+        void Probe();
+        void HandleRead(Ptr<Socket> socket);
+
+        Time m_interval;  //!< Packet inter-send time
+        uint32_t m_size;  //!< Size of the sent packet (including the SeqTsHeader)
+
+        uint32_t m_sent;       //!< Counter for sent packets
+        uint64_t m_totalTx;    //!< Total bytes sent
+        Ptr<Socket> m_socket;  //!< Socket
+        uint16_t m_port;       //!< Port on which we listen for incoming packets.
+        EventId m_sendEvent;   //!< Event to send the next packet
+
+        /// Callbacks for tracing the packet Rx events
+        TracedCallback<Ptr<const Packet>> m_rxTrace;
+
+        /// Callbacks for tracing the packet Rx events, includes source and destination addresses
+        TracedCallback<Ptr<const Packet>, const Address&, const Address&> m_rxTraceWithAddresses;
+        
+        std::unordered_map<int, std::pair<Address, int64_t>> m_nearestOverlaySwitchInPeerTDs;
+    };
+
     class RIBLinkStateManager: public Application
     {
     public:
@@ -375,6 +417,8 @@ namespace ns3{
         uint64_t GetReceived() const;
         uint16_t GetPacketWindowSize() const;
         void SetPacketWindowSize(uint16_t size);
+        const std::map<int, Ipv4Address>& GetPeerRibAddressMap() const;
+        const std::map<int, std::set<Address>>& GetOverlaySwitchInOtherTDMap() const;
         uint32_t td_num;
         Time peer_calc_delay;
         Address rib_addr;
@@ -541,6 +585,7 @@ class OverlaySwitch
     public:
         Ptr<OverlaySwitchPingClient> pingClient;
         Ptr<OverlaySwitchForwardingEngine> fwdEng;
+        Ptr<OverlaySwitchNeighborProber> neighborProber;
         Address my_addr;
         Address rib_addr;
         int td_num;
@@ -554,6 +599,7 @@ class OverlaySwitch
         ns3::ObjectFactory pingClientFactory;
         ns3::ObjectFactory pingServerFactory;
         ns3::ObjectFactory fwdEngFactory;
+        ns3::ObjectFactory neighborProberFactory;
 };
 
 class DCServer

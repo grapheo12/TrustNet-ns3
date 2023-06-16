@@ -260,6 +260,7 @@ main(int argc, char* argv[])
     LogComponentEnable("DCOwner", LOG_LEVEL_ALL);
     LogComponentEnable("DCEchoServer", LOG_LEVEL_ALL);
     LogComponentEnable("TrustNet_Main", LOG_LEVEL_ALL);
+    LogComponentEnable("OverlaySwitchNeighborProber", LOG_LEVEL_ALL);
 
     // BRITE needs a configuration file to build its graph. By default, this
     // example will use the TD_ASBarabasi_RTWaxman.conf file. There are many others
@@ -391,7 +392,7 @@ main(int argc, char* argv[])
     DCServer dcs3(dcStore3Interfaces.GetAddress(0), ribs.first[3]->my_addr);
     ApplicationContainer dcApps3(dcs3.Install(dcStore3.Get(0)));
 
-
+    // SECTION - Preparing advertisement and certificates to all DataCapsule servers
     std::set<std::string> generated_names;
     for (int i = 0; i < 10; i++){
         // generate new dc names
@@ -408,80 +409,6 @@ main(int argc, char* argv[])
         CreateAndEnqueueCert(dcs3, random_dc_name, dco);
     }
 
-    // // ! Testing with multiple dc servers
-    // for (const std::string& n : generated_names) {
-    //     // creat advertisement packet
-    //     Json::Value serializeRoot;
-        
-        
-    //     serializeRoot["dc_name"] = n;
-        
-    //     Ipv4Address origin_AS_addr = Ipv4Address::ConvertFrom(dcs2.rib_addr);
-    //     std::stringstream ss;
-    //     origin_AS_addr.Print(ss);
-    //     serializeRoot["origin_AS"] = ss.str();
-
-        
-
-    //     // * add dc server's IP into the serialization because client needs it when sending packets
-    //     Ipv4Address origin_server_addr = Ipv4Address::ConvertFrom(dcs2.my_addr);
-    //     std::stringstream ss2;
-    //     origin_server_addr.Print(ss2);
-    //     serializeRoot["origin_server"] = ss2.str();
-        
-    //     // NS_LOG_INFO("origin_as is: " << ss.str() << " origin_server is: " << ss2.str());
-    //     // serialize the packet
-    //     Json::StyledWriter writer;
-    //     std::string advertisement = writer.write(serializeRoot);
-    //     NS_LOG_INFO("advertisement to advertise is: " << advertisement);
-    //     // add name to the name list to be advertised
-    //     dcs2.advertiser->dcNameList.push_back(advertisement);
-
-    //     DCOwner::CertInfo cinfo;
-    //     cinfo.entity = ss2.str();
-    //     cinfo.type = "trust";
-    //     cinfo.r_transitivity = 100;
-    //     cinfo.rib_addr = dcs2.rib_addr;
-    //     cinfo.issuer = n;
-    //     dco->certs_to_send.push_back(cinfo);
-    // }
-
-    // for (const std::string& n : generated_names) {
-    //     // creat advertisement packet
-    //     Json::Value serializeRoot;
-        
-        
-    //     serializeRoot["dc_name"] = n;
-        
-    //     Ipv4Address origin_AS_addr = Ipv4Address::ConvertFrom(dcs3.rib_addr);
-    //     std::stringstream ss;
-    //     origin_AS_addr.Print(ss);
-    //     serializeRoot["origin_AS"] = ss.str();
-
-        
-
-    //     // * add dc server's IP into the serialization because client needs it when sending packets
-    //     Ipv4Address origin_server_addr = Ipv4Address::ConvertFrom(dcs3.my_addr);
-    //     std::stringstream ss2;
-    //     origin_server_addr.Print(ss2);
-    //     serializeRoot["origin_server"] = ss2.str();
-        
-    //     // NS_LOG_INFO("origin_as is: " << ss.str() << " origin_server is: " << ss2.str());
-    //     // serialize the packet
-    //     Json::StyledWriter writer;
-    //     std::string advertisement = writer.write(serializeRoot);
-    //     NS_LOG_INFO("advertisement to advertise is: " << advertisement);
-    //     // add name to the name list to be advertised
-    //     dcs3.advertiser->dcNameList.push_back(advertisement);
-
-    //     DCOwner::CertInfo cinfo;
-    //     cinfo.entity = ss2.str();
-    //     cinfo.type = "trust";
-    //     cinfo.r_transitivity = 100;
-    //     cinfo.rib_addr = dcs3.rib_addr;
-    //     cinfo.issuer = n;
-    //     dco->certs_to_send.push_back(cinfo);
-    // }
 
 
     dcoApp.Start(Seconds(13.0));
@@ -508,7 +435,7 @@ main(int argc, char* argv[])
     // BUILD_CLIENT(5, "user:5", clientFactory, dummyClientApps)
     // BUILD_CLIENT(6, "user:6", clientFactory, dummyClientApps)
     // BUILD_CLIENT(7, "user:7", clientFactory, dummyClientApps)
-    BUILD_CLIENT(8, "user:8", clientFactory, dummyClientApps)
+    // BUILD_CLIENT(8, "user:8", clientFactory, dummyClientApps)
     // BUILD_CLIENT(9, "user:9", clientFactory, dummyClientApps)
     dummyClientApps.Start(Seconds(300.0));
     dummyClientApps.Stop(Seconds(GLOBAL_STOP_TIME));

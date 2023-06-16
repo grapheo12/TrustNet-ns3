@@ -303,10 +303,8 @@ namespace ns3
                 // NS_LOG_INFO("I am ribadstore at " << Ipv4Address::ConvertFrom(rib->my_addr));
                 NS_LOG_INFO("" << Ipv4Address::ConvertFrom(rib->my_addr) <<  " received: " << ad);
 
-            NS_LOG_INFO("Entering FromAdvertisementStr");
                 // * deserialize the advertisement packet
                 NameDBEntry* advertised_entry = NameDBEntry::FromAdvertisementStr(ad);
-            NS_LOG_INFO("Leaved FromAdvertisementStr");
 
                 if (advertised_entry == nullptr) {
                     NS_LOG_ERROR("Cannot parse ads: " << ad);
@@ -328,9 +326,7 @@ namespace ns3
                     continue;
                 }
 
-            NS_LOG_INFO("Entering UpdateNameCache");
                 bool updated = UpdateNameCache(advertised_entry);
-            NS_LOG_INFO("Leaved UpdateNameCache");
 
                 NS_LOG_INFO("Number of ads: " << db.size());
 

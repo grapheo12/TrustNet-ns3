@@ -86,6 +86,16 @@ namespace ns3
         Application::DoDispose();
     }
 
+    const std::map<int, Ipv4Address>&
+    OverlaySwitchForwardingEngine::GetPeerRibAddressMap() const {
+        return temp_peering_rib_addrs;
+    }
+
+    const std::map<int, std::set<Address>>& 
+    OverlaySwitchForwardingEngine::GetOverlaySwitchInOtherTDMap() const {
+        return oswitch_in_other_td;
+    }
+
     void
     OverlaySwitchForwardingEngine::StartApplication()
     {

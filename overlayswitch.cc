@@ -33,9 +33,16 @@ OverlaySwitch::Install(Ptr<Node> node)
     fwdEng->rib_addr = rib_addr;
 
     node->AddApplication(fwdEng);
+
+    neighborProberFactory.SetTypeId(OverlaySwitchNeighborProber::GetTypeId());
+    neighborProber = neighborProberFactory.Create<OverlaySwitchNeighborProber>();
+    neighborProber->parent_ctx = (void *)this;
+
+    node->AddApplication(neighborProber);
     
     ApplicationContainer app;
     app.Add(pingClient);
     app.Add(fwdEng);
+    app.Add(neighborProber);
     return app;
 }
