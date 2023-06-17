@@ -34,6 +34,7 @@
 #define DCSERVER_ECHO_PORT 3007
 #define CLIENT_REPLY_PORT 3008
 #define OVERLAY_PROBER_PORT 3009
+#define CLIENT_PROBER_PORT 3010
 #define PACKET_MAGIC_UP 0xdeadface
 #define PACKET_MAGIC_DOWN 0xcafebabe
 
@@ -257,6 +258,7 @@ namespace ns3{
         uint64_t GetTotalTx() const;
 
         void SimpliEchoBack(Ptr<Socket> socket, Address from, std::string& packet);
+        void SimpliEchoBackClient(Address from, std::string& packet);
         void SimpliEchoRequest(Ptr<Socket> socket, Address to);
         std::unordered_map<int, std::pair<Address, int64_t>>& GetNearestPeerOSwitchMap();
         std::optional<Address> GetNearestOverlaySwitchInTD(int tdNumber);
@@ -505,6 +507,7 @@ namespace ns3{
         void SetRemote(Address ip, uint16_t port);
         void SetRemote(Address addr);
         uint64_t GetTotalTx() const;
+        void SimpliEchoRequest(const Ipv4Address& dest);
         std::set<Ipv4Address> switches_in_my_td;
         std::set<std::string> dcnames_to_route;
         std::map<Address, int> peers_to_ASNum;
@@ -523,6 +526,7 @@ namespace ns3{
         void HandleSwitch(Ptr<Socket> sock);
         void PledgeAllegiance();
         void HandleDCResponse(Ptr<Socket> sock);
+        void HandleProberResponse(Ptr<Socket> sock);
 
         uint32_t m_count; //!< Maximum number of packets the application will send
         Time m_interval;  //!< Packet inter-send time
@@ -535,10 +539,12 @@ namespace ns3{
         Ptr<Socket> path_computer_socket;
         Ptr<Socket> switch_socket;
         Ptr<Socket> reply_socket;
+        Ptr<Socket> switch_prober_server_socket; //!< server socket for accepting pushed packets from oswitch within domain
         Address m_peerAddress; //!< Remote peer address
         uint16_t m_peerPort;   //!< Remote peer port
         EventId m_sendEvent;   //!< Event to send the next packet
-        // EventId m_sendEvent2;
+        
+        std::optional<std::pair<Ipv4Address, int64_t>> m_nearestOverlaySwitchInMyDomain;
         
     #ifdef NS3_LOG_ENABLE
         std::string m_peerAddressString; //!< Remote peer address string

@@ -127,16 +127,20 @@ namespace ns3
                 packet->CopyData(&ss, packet->GetSize());
                 std::string payload = ss.str();
 
-
-                // Process the echo request packet by echoing it back to where it originates
-                if (payload.size() > 11 && payload.substr(0, 11) == "ECHOREQUEST") {
-                    Simulator::ScheduleNow(&OverlaySwitchNeighborProber::SimpliEchoBack, this, socket, from, payload);
+                // Process the echo request packet coming from the client side
+                if (payload.size() > 17 && payload.substr(0, 17) == "ECHOREQUESTCLIENT") {
+                    Simulator::ScheduleNow(&OverlaySwitchNeighborProber::SimpliEchoBackClient, this, from, payload);
                 } 
                 
+                // Process the echo request packet by echoing it back to where it originates
+                else if (payload.size() > 11 && payload.substr(0, 11) == "ECHOREQUEST") {
+                    Simulator::ScheduleNow(&OverlaySwitchNeighborProber::SimpliEchoBack, this, socket, from, payload);
+                }
+
                 // Update nearest overlay switch in each peer trust domain with the response packet
                 else if (payload.size() > 12 && payload.substr(0, 12) == "ECHORESPONSE") {
                     // * Format: 
-                    // *     "ECHOBACK [SendTime] [TDNum]"
+                    // *     "ECHORESPONSE [SendTime] [TDNum]"
                     
                     const char* payloadBuf = payload.c_str();
                     int64_t sendTime = *(int64_t*)(payloadBuf+13);
@@ -160,6 +164,8 @@ namespace ns3
                     }
 
                     NS_LOG_INFO("Nearest Overlay Switch In Peer TD Map is updated! Nearest OSwitch for TD " << from_TD << " is " << from << " with RTT = " << timeDiff);
+
+
 
                 } else {
                     NS_LOG_INFO("OSwitchProber received unidentified packet: " << payload);
@@ -199,6 +205,35 @@ namespace ns3
 
         
         NS_LOG_INFO("Received SimpliSendEcho request, sending back...");
+        Ptr<Packet> p = Create<Packet>((const uint8_t *)buf, bufSize);
+        NS_LOG_INFO("Send status: " << sock->Send(p));
+    }
+
+    void OverlaySwitchNeighborProber::SimpliEchoBackClient(Address from, std::string& packetContent) 
+    {
+        OverlaySwitch* rib = (OverlaySwitch*) parent_ctx;
+        int myTDNumber = global_addr_to_AS.at(rib->rib_addr);
+        
+        // * Create data buffer to send
+        // * Format: 
+        // *     "ECHORESPONSECLIENT [SendTime]"
+        size_t bufSize = 18+1+8;
+        char buf[bufSize];
+        
+        memcpy(buf, "ECHORESPONSECLIENT", 18);
+        buf[18] = ' ';
+        memcpy(buf+19, packetContent.data()+18, 8);
+        
+
+        // Create socket
+        TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
+
+        Ptr<Socket> sock = Socket::CreateSocket(GetNode(), tid);
+        
+        Ipv4Address target = InetSocketAddress::ConvertFrom(from).GetIpv4();
+        sock->Connect(InetSocketAddress(target, CLIENT_PROBER_PORT));
+
+        NS_LOG_INFO("Received SimpliSendEchoClient request, sending back...");
         Ptr<Packet> p = Create<Packet>((const uint8_t *)buf, bufSize);
         NS_LOG_INFO("Send status: " << sock->Send(p));
     }
