@@ -247,7 +247,7 @@ namespace ns3{
     #endif  
     };
 
-    
+
     class OverlaySwitchNeighborProber: public Application
     {
     public:
@@ -259,6 +259,7 @@ namespace ns3{
         void SimpliEchoBack(Ptr<Socket> socket, Address from, std::string& packet);
         void SimpliEchoRequest(Ptr<Socket> socket, Address to);
         std::unordered_map<int, std::pair<Address, int64_t>>& GetNearestPeerOSwitchMap();
+        std::optional<Address> GetNearestOverlaySwitchInTD(int tdNumber);
         void* parent_ctx;
 
     protected:
@@ -422,6 +423,7 @@ namespace ns3{
         uint32_t td_num;
         Time peer_calc_delay;
         Address rib_addr;
+        void* parent_ctx; // Point to the parent OverlaySwitch class
 
     protected:
         void DoDispose() override;

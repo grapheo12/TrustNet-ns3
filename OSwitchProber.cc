@@ -67,6 +67,15 @@ namespace ns3
         return m_nearestOverlaySwitchInPeerTDs;
     }
 
+    std::optional<Address> 
+    OverlaySwitchNeighborProber::GetNearestOverlaySwitchInTD(int tdNumber) {
+        if (m_nearestOverlaySwitchInPeerTDs.find(tdNumber) == m_nearestOverlaySwitchInPeerTDs.end()) {
+            return std::nullopt;
+        }
+        auto [addr, rtt] = m_nearestOverlaySwitchInPeerTDs[tdNumber];
+        return addr;
+    }
+
     void
     OverlaySwitchNeighborProber::StartApplication()
     {
@@ -96,6 +105,12 @@ namespace ns3
         NS_LOG_FUNCTION(this);
         Simulator::Cancel(m_sendEvent);
     }
+
+
+
+
+
+
     void 
     OverlaySwitchNeighborProber::HandleRead(Ptr<Socket> socket) {
         Ptr<Packet> packet;

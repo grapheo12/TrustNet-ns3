@@ -161,6 +161,7 @@ namespace ns3
     void
     OverlaySwitchForwardingEngine::HandleRead(Ptr<Socket> socket)
     {
+        OverlaySwitch* parentOverlaySwitch = (OverlaySwitch *) parent_ctx;
         // NS_LOG_FUNCTION(this << socket);
         Ptr<Packet> packet;
         Address from;
@@ -224,17 +225,25 @@ namespace ns3
                         delete[] buff;
                         continue;
                     }
-                    auto it = oswitch_in_other_td.find(buff[8 + buff[2]]);
+                    uint32_t other_td_num = buff[8 + buff[2]];
+                    auto it = oswitch_in_other_td.find(other_td_num);
                     if (it == oswitch_in_other_td.end() || it->second.size() == 0){
                         delete[] buff;
                         continue;
                     }
-                    Address next_hop_addr = *(it->second.begin());      // TODO: Do round robin here.
+
+                    Address next_hop_addr = *(it->second.begin());      //NOTE - Default next oswitch to pick is the "first" one
+                    // Pick the nearest next hop overlay switch if there is one that's been calculated
+                    std::optional<Address> smart_next_hop = parentOverlaySwitch->neighborProber->GetNearestOverlaySwitchInTD(other_td_num);
+                    if (smart_next_hop.has_value()) {
+                        NS_LOG_INFO("Using \"smart\" next hop: " << smart_next_hop.value() << ", instead of: " << next_hop_addr);
+                        next_hop_addr = smart_next_hop.value();
+                    }
 
                     Ptr<Packet> fwdPacket = Create<Packet>((const uint8_t *)buff, sz);
                     fwdPacket->AddHeader(seqTs);
 
-                    NS_LOG_INFO("Forwarding to AS: " << buff[8 + buff[2]]);
+                    NS_LOG_INFO("Forwarding to AS: " << other_td_num);
                     Simulator::ScheduleNow(&OverlaySwitchForwardingEngine::ForwardPacket, this, next_hop_addr, OVERLAY_FWD, fwdPacket);
                     delete[] buff;
                 }else{
@@ -250,17 +259,26 @@ namespace ns3
                         continue;
                     }
                     buff[2]--;
-                    auto it = oswitch_in_other_td.find(buff[8 + buff[2]]);
+
+                    uint32_t other_td_num = buff[8 + buff[2]];
+                    auto it = oswitch_in_other_td.find(other_td_num);
                     if (it == oswitch_in_other_td.end() || it->second.size() == 0){
                         delete[] buff;
                         continue;
                     }
-                    Address next_hop_addr = *(it->second.begin());      // TODO: Do round robin here.
-                    
+                    Address next_hop_addr = *(it->second.begin());      //NOTE - Default next oswitch to pick is the "first" one
+                    // Pick the nearest next hop overlay switch if there is one that's been calculated
+                    std::optional<Address> smart_next_hop = parentOverlaySwitch->neighborProber->GetNearestOverlaySwitchInTD(other_td_num);
+                    if (smart_next_hop.has_value()) {
+                        NS_LOG_INFO("Using \"smart\" next hop: " << smart_next_hop.value() << ", instead of: " << next_hop_addr);
+                        next_hop_addr = smart_next_hop.value();
+                    }
+
+
                     Ptr<Packet> fwdPacket = Create<Packet>((const uint8_t *)buff, sz);
                     fwdPacket->AddHeader(seqTs);
 
-                    NS_LOG_INFO("Forwarding to AS: " << buff[8 + buff[2]]);
+                    NS_LOG_INFO("Forwarding to AS: " << other_td_num);
                     Simulator::ScheduleNow(&OverlaySwitchForwardingEngine::ForwardPacket, this, next_hop_addr, OVERLAY_FWD, fwdPacket);
                     delete[] buff;
                 }
