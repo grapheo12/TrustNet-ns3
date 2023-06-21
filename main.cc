@@ -9,7 +9,7 @@
 #define SWITCH_SUBNET   "8.0.0.0"
 #define COMMON_MASK     "255.255.255.0"
 #define DCSERVER_AS     1
-#define GLOBAL_STOP_TIME 600.0
+#define GLOBAL_STOP_TIME 400.0
 
 #define BUILD_P2P(name, as, addr)    NodeContainer name;\
 name.Create(1);\
@@ -33,7 +33,9 @@ dummyClient2->SetAttribute("Interval", TimeValue(Seconds(1.)));\
 dummyClient2->SetAttribute("PacketSize", UintegerValue(1024));\
 dummyClient2->SetAttribute("Name", StringValue(name));\
 for (auto str : generated_names) {\
-    dummyClient2->dcnames_to_route.insert("fogrobotics:" + str);\
+    dummyClient2->dcnames_to_route.insert("fogrobotics1:" + str);\
+    dummyClient2->dcnames_to_route.insert("fogrobotics2:" + str);\
+    dummyClient2->dcnames_to_route.insert("fogrobotics3:" + str);\
 }\
 for (auto& ref : dummyClient2->dcnames_to_route) {\
     NS_LOG_INFO("DC name dummy client 2 will try to send message: " << ref);\
@@ -265,7 +267,7 @@ main(int argc, char* argv[])
     // BRITE needs a configuration file to build its graph. By default, this
     // example will use the TD_ASBarabasi_RTWaxman.conf file. There are many others
     // which can be found in the BRITE/conf_files directory
-    std::string confFile = "scratch/trustnet/brite-conf.conf";
+    std::string confFile = "scratch/trustnet-1/brite-conf.conf";
     bool tracing = false;
     bool nix = true;
 
@@ -305,7 +307,7 @@ main(int argc, char* argv[])
     // ! Testing: Multiple DC servers in different domains
     BUILD_P2P(dcStore1, 1, "11.1.0.0")
     BUILD_P2P(dcStore2, 2, "11.2.0.0")
-    BUILD_P2P(dcStore3, 3, "11.4.0.0") // ! 11.3.0.0 is taken, so this is 11.4.0.0 for now. Need justification...
+    BUILD_P2P(dcStore3, 3, "11.3.0.0") // ! 11.3.0.0 is taken, so this is 11.4.0.0 for now. Need justification...
 
     BUILD_P2P(client2, 2, CLIENT_SUBNET("2"));
     BUILD_P2P(client3, 3, CLIENT_SUBNET("3"));
@@ -317,7 +319,9 @@ main(int argc, char* argv[])
     BUILD_P2P(client9, 9, CLIENT_SUBNET("9"));
 
     // Same AS as the DCServerAdvertiser below.
-    BUILD_P2P(dcOwner, DCSERVER_AS, "11.3.0.0")
+    BUILD_P2P(dcOwner1, 1, "11.4.0.0")
+    BUILD_P2P(dcOwner2, 2, "11.5.0.0")
+    BUILD_P2P(dcOwner3, 3, "11.6.0.0")
 
 
     address.SetBase(SERVER_SUBNET, COMMON_MASK); // * 1 server per AS
@@ -376,11 +380,19 @@ main(int argc, char* argv[])
 
     ns3::ObjectFactory dcOwnerFactory; 
     dcOwnerFactory.SetTypeId(DCOwner::GetTypeId());
-    Ptr<DCOwner> dco = dcOwnerFactory.Create<DCOwner>();
-    dco->my_name = "fogrobotics";
+    Ptr<DCOwner> dco1 = dcOwnerFactory.Create<DCOwner>();
+    dco1->my_name = "fogrobotics1";
+    Ptr<DCOwner> dco2 = dcOwnerFactory.Create<DCOwner>();
+    dco2->my_name = "fogrobotics2";
+    Ptr<DCOwner> dco3 = dcOwnerFactory.Create<DCOwner>();
+    dco3->my_name = "fogrobotics3";
 
-    dcOwner.Get(0)->AddApplication(dco);
-    ApplicationContainer dcoApp(dco);
+    dcOwner1.Get(0)->AddApplication(dco1);
+    ApplicationContainer dcoApp(dco1);
+    dcOwner2.Get(0)->AddApplication(dco2);
+    dcoApp.Add(dco2);
+    dcOwner3.Get(0)->AddApplication(dco3);
+    dcoApp.Add(dco3);
 
     // ! Installing multiple DC servers
     DCServer dcs1(dcStore1Interfaces.GetAddress(0), ribs.first[1]->my_addr);
@@ -400,13 +412,13 @@ main(int argc, char* argv[])
         generated_names.insert(random_dc_name);
 
         CreateAndEnqueueAds(dcs1, random_dc_name);
-        CreateAndEnqueueCert(dcs1, random_dc_name, dco);
+        CreateAndEnqueueCert(dcs1, random_dc_name, dco1);
 
         CreateAndEnqueueAds(dcs2, random_dc_name);
-        CreateAndEnqueueCert(dcs2, random_dc_name, dco);
+        CreateAndEnqueueCert(dcs2, random_dc_name, dco2);
 
         CreateAndEnqueueAds(dcs3, random_dc_name);
-        CreateAndEnqueueCert(dcs3, random_dc_name, dco);
+        CreateAndEnqueueCert(dcs3, random_dc_name, dco3);
     }
 
 

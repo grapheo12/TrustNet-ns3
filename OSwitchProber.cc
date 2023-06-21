@@ -21,7 +21,7 @@ namespace ns3
                             MakeUintegerChecker<uint16_t>())
                 .AddAttribute("Interval",
                             "The time to wait between packets",
-                            TimeValue(Seconds(100.0)),
+                            TimeValue(Seconds(50.0)),
                             MakeTimeAccessor(&OverlaySwitchNeighborProber::m_interval),
                             MakeTimeChecker())
                 .AddAttribute("PacketSize",
@@ -48,6 +48,7 @@ namespace ns3
         m_totalTx = 0;
         m_socket = nullptr;
         m_sendEvent = EventId();
+        max_packets = 1;
     }
 
     OverlaySwitchNeighborProber::~OverlaySwitchNeighborProber()
@@ -163,6 +164,7 @@ namespace ns3
                         m_nearestOverlaySwitchInPeerTDs[from_TD] = std::make_pair(from, timeDiff);
                     }
 
+                    if (updated)
                     NS_LOG_INFO("Nearest Overlay Switch In Peer TD Map is updated! Nearest OSwitch for TD " << from_TD << " is " << from << " with RTT = " << timeDiff);
 
 
@@ -211,8 +213,8 @@ namespace ns3
 
     void OverlaySwitchNeighborProber::SimpliEchoBackClient(Address from, std::string& packetContent) 
     {
-        OverlaySwitch* rib = (OverlaySwitch*) parent_ctx;
-        int myTDNumber = global_addr_to_AS.at(rib->rib_addr);
+        // OverlaySwitch* rib = (OverlaySwitch*) parent_ctx;
+        // int myTDNumber = global_addr_to_AS.at(rib->rib_addr);
         
         // * Create data buffer to send
         // * Format: 
@@ -286,7 +288,8 @@ namespace ns3
                 const std::set<Address>& targets = overlaySwitchInOtherTDMap.at(peerTDNum);
                 for (auto& target_oswitch_addr : targets) {
                     // Send echo request to target_oswitch_addr
-                    Simulator::ScheduleNow(&OverlaySwitchNeighborProber::SimpliEchoRequest, this, m_socket, target_oswitch_addr);
+                    NS_LOG_INFO("Probe Info: " << max_packets << " From: " << parent_ctx->td_num << " To: " << peerTDNum << " Target Addr: " << target_oswitch_addr);
+                    SimpliEchoRequest(m_socket, target_oswitch_addr);
                 }
 
             }
@@ -299,7 +302,9 @@ namespace ns3
         //     ++m_sent;
         //     m_totalTx += p->GetSize();
         // }
-        m_sendEvent = Simulator::Schedule(m_interval, &OverlaySwitchNeighborProber::Probe, this);
+        max_packets--;
+        if (max_packets > 0)
+            m_sendEvent = Simulator::Schedule(m_interval, &OverlaySwitchNeighborProber::Probe, this);
     }
 
 }

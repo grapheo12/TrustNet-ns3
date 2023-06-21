@@ -95,6 +95,7 @@ namespace ns3
         Ptr<Packet> packet;
         Address from;
         while ((packet = sock->RecvFrom(from))){
+            NS_LOG_INFO("opwejgnkjwngwkegnwkgwngkjwbgwkgbsdkjvbsdvblkjs");
             if (packet->GetSize() > 0){
                 uint32_t receivedSize = packet->GetSize();
                 SeqTsHeader seqTs;
@@ -563,7 +564,7 @@ namespace ns3
     #endif // NS3_LOG_ENABLE
 
         // m_sendEvent = Simulator::Schedule(m_interval, &DummyClient::Send, this);
-        Simulator::Schedule(Seconds(0.5), &DummyClient2::SendUsingPath, this, path, destination_ip);
+        Simulator::Schedule(Seconds(0.001), &DummyClient2::SendUsingPath, this, path, destination_ip);
         
     }
 

@@ -369,7 +369,21 @@ namespace ns3
                     //     NS_LOG_INFO("issuer: " << it->first << ", entity: " << it->second.first << ", type: " << it->second.second);
                     // }
                     if (is_origin_AS_for_curr_ad) {
-                        auto [range_begin, range_end] = trust_relation_map.equal_range("fogrobotics:" + advertised_entry->dc_name);
+                        // WARNING: VERY VERY HACKY!!!!!
+                        std::string __chk_name = "fogrobotics1";
+                        auto [range_begin, range_end] = trust_relation_map.equal_range("fogrobotics1:" + advertised_entry->dc_name);
+                        if (range_begin == range_end){
+                            auto [__range_begin, __range_end] = trust_relation_map.equal_range("fogrobotics2:" + advertised_entry->dc_name);
+                            range_begin = __range_begin;
+                            range_end = __range_end;
+                            __chk_name = "fogrobotics2";
+                        }
+                        if (range_begin == range_end){
+                            auto [__range_begin, __range_end] = trust_relation_map.equal_range("fogrobotics3:" + advertised_entry->dc_name);
+                            range_begin = __range_begin;
+                            range_end = __range_end;
+                            __chk_name = "fogrobotics3";
+                        }
                         for (auto it = range_begin; it != range_end; it++) {
                             // check if "entity" is the data capsule server name
                             if (Ipv4Address((it->second.first).c_str()) == advertised_entry->origin_server) {
@@ -381,7 +395,7 @@ namespace ns3
                                 advertised_entry->trust_cert.type = "trust";
                                 // * Attach distrust relations of the DC owner
                                 auto& distrust_relation_map = rib->certStore->distrustRelations;
-                                auto [range_start, range_stop] = distrust_relation_map.equal_range("fogrobotics:" + advertised_entry->dc_name);
+                                auto [range_start, range_stop] = distrust_relation_map.equal_range(__chk_name + ":" + advertised_entry->dc_name);
                                 for (auto it = range_start; it != range_stop; ++it) {
                                     advertised_entry->distrust_certs.push_back(
                                         NameDBEntry::DistrustCert {"distrust", it->second, it->first}

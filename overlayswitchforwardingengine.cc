@@ -185,6 +185,7 @@ namespace ns3
                 uint32_t *buff = new uint32_t[receivedSize / sizeof(uint32_t) + 2];
                 uint32_t sz = packet->CopyData((uint8_t *)buff, receivedSize);
                 if (sz < 16){
+                    NS_LOG_INFO("REJECT 1");
                     delete[] buff;
                     continue;
                 }
@@ -198,16 +199,19 @@ namespace ns3
                 uint32_t curr_hop = buff[2];
                 uint32_t content_sz = buff[3];
                 if (sz < 32 + 4 * hop_cnt + 64 + content_sz){
+                    NS_LOG_INFO("REJECT 2");
                     delete[] buff;
                     continue;
                 }
                 if (buff[0] == PACKET_MAGIC_UP &&
                     (curr_hop >= hop_cnt || buff[8 + curr_hop] != td_num)){
+                    NS_LOG_INFO("REJECT 3");
                     delete[] buff;
                     continue;
                 }
                 if (buff[0] == PACKET_MAGIC_DOWN &&
                     (buff[8 + curr_hop] != td_num)){
+                    NS_LOG_INFO("REJECT 4");
                     delete[] buff;
                     continue;
                 }
@@ -228,6 +232,7 @@ namespace ns3
                     uint32_t other_td_num = buff[8 + buff[2]];
                     auto it = oswitch_in_other_td.find(other_td_num);
                     if (it == oswitch_in_other_td.end() || it->second.size() == 0){
+                        NS_LOG_INFO("REJECT 5");
                         delete[] buff;
                         continue;
                     }
@@ -261,8 +266,10 @@ namespace ns3
                     buff[2]--;
 
                     uint32_t other_td_num = buff[8 + buff[2]];
+                    NS_LOG_INFO("Back checking " << other_td_num);
                     auto it = oswitch_in_other_td.find(other_td_num);
                     if (it == oswitch_in_other_td.end() || it->second.size() == 0){
+                        NS_LOG_INFO("REJECT 6");
                         delete[] buff;
                         continue;
                     }
