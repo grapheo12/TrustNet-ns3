@@ -442,13 +442,13 @@ main(int argc, char* argv[])
     clientFactory.SetTypeId(DummyClient2::GetTypeId());
     ApplicationContainer dummyClientApps;
     BUILD_CLIENT(2, "user:2", clientFactory, dummyClientApps)
-    // BUILD_CLIENT(3, "user:3", clientFactory, dummyClientApps)
-    // BUILD_CLIENT(4, "user:4", clientFactory, dummyClientApps)
-    // BUILD_CLIENT(5, "user:5", clientFactory, dummyClientApps)
-    // BUILD_CLIENT(6, "user:6", clientFactory, dummyClientApps)
-    // BUILD_CLIENT(7, "user:7", clientFactory, dummyClientApps)
-    // BUILD_CLIENT(8, "user:8", clientFactory, dummyClientApps)
-    // BUILD_CLIENT(9, "user:9", clientFactory, dummyClientApps)
+    BUILD_CLIENT(3, "user:3", clientFactory, dummyClientApps)
+    BUILD_CLIENT(4, "user:4", clientFactory, dummyClientApps)
+    BUILD_CLIENT(5, "user:5", clientFactory, dummyClientApps)
+    BUILD_CLIENT(6, "user:6", clientFactory, dummyClientApps)
+    BUILD_CLIENT(7, "user:7", clientFactory, dummyClientApps)
+    BUILD_CLIENT(8, "user:8", clientFactory, dummyClientApps)
+    BUILD_CLIENT(9, "user:9", clientFactory, dummyClientApps)
     dummyClientApps.Start(Seconds(300.0));
     dummyClientApps.Stop(Seconds(GLOBAL_STOP_TIME));
 

@@ -262,6 +262,7 @@ namespace ns3{
         void SimpliEchoRequest(Ptr<Socket> socket, Address to);
         std::unordered_map<int, std::pair<Address, int64_t>>& GetNearestPeerOSwitchMap();
         std::optional<Address> GetNearestOverlaySwitchInTD(int tdNumber);
+        std::optional<Address> GetRROverlaySwitchInTD(int tdNumber);
         void* parent_ctx;
 
     protected:
@@ -283,6 +284,7 @@ namespace ns3{
         uint16_t m_port;       //!< Port on which we listen for incoming packets.
         EventId m_sendEvent;   //!< Event to send the next packet
 
+        uint32_t rr_cnt;
         /// Callbacks for tracing the packet Rx events
         TracedCallback<Ptr<const Packet>> m_rxTrace;
 

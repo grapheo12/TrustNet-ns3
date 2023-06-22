@@ -49,6 +49,7 @@ namespace ns3
         m_socket = nullptr;
         m_sendEvent = EventId();
         max_packets = 1;
+        rr_cnt = 0;
     }
 
     OverlaySwitchNeighborProber::~OverlaySwitchNeighborProber()
@@ -75,6 +76,26 @@ namespace ns3
         }
         auto [addr, rtt] = m_nearestOverlaySwitchInPeerTDs[tdNumber];
         return addr;
+    }
+
+    std::optional<Address> 
+    OverlaySwitchNeighborProber::GetRROverlaySwitchInTD(int tdNumber) {
+        OverlaySwitch* parent_ctx = (OverlaySwitch*) (this->parent_ctx);
+        const std::map<int, std::set<Address>>& overlaySwitchInOtherTDMap = parent_ctx->fwdEng->GetOverlaySwitchInOtherTDMap();
+        auto it = overlaySwitchInOtherTDMap.find(tdNumber);
+        if (it == overlaySwitchInOtherTDMap.end()){
+            return std::nullopt;
+        }
+        int idx = rr_cnt++ % it->second.size();
+
+        for (auto it2 = it->second.begin(); it2 != it->second.end(); it2++){
+            if (idx == 0){
+                return *it2;
+            }
+            idx--;
+        }
+
+        return std::nullopt;        // Unreachable code.
     }
 
     void
