@@ -1,6 +1,7 @@
 #include "main.h"
 #include <string>
 #include <sstream>
+#include <iostream>
 // #define DATAGRAM_SIZE (8+path.size()+16 + 2)
 #define DATAGRAM_SIZE 100
 
@@ -122,7 +123,7 @@ namespace ns3
                     int64_t *content = (int64_t *)((char *)buff + 32 + 4 * hop_cnt + 64);
                     int64_t timeNow = Simulator::Now().GetMicroSeconds();
 
-                    NS_LOG_INFO("Receive delay: " << timeNow - (*content) << " Hops: " << buff[1]);
+                    std::cerr << "Receive delay: " << timeNow - (*content) << " Hops: " << buff[1] << std::endl;
                 }else{
                     NS_LOG_INFO("Received Empty reply from DC");
                 }

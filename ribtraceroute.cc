@@ -169,14 +169,17 @@ RIBTraceRoute::StopApplication()
         *m_printStream->GetStream() << "Trace Complete\n" << std::endl;
         *m_printStream->GetStream() << "Map output:" << std::endl;
         std::set<int> all_as;
+        int __sz = traceOutput.size();
+        int __cnt = 0;
         for (auto &x: traceOutput){
             int as = -1;
             std::stringstream ss;
             ss << x.second;
             auto it = addr_map->find(ss.str());
-            if (it != addr_map->end()){
+            if (it != addr_map->end() && __cnt < __sz - 1){
                 as = it->second;
             }
+            __cnt++;
             *m_printStream->GetStream() << x.first << " " << x.second << " AS: " << as << std::endl;
             if (as != -1){
                 all_as.insert(as);

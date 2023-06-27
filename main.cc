@@ -94,31 +94,81 @@ randomNodeAssignment(
     return assgn;
 }
 
-// void assignRandomASPeers(const std::vector<RIB *>& ribs) 
-// {
-//     auto rng = std::default_random_engine {};
-//     std::vector<RIB *> queue = ribs; // copies the ribs vector
+std::vector<std::pair<NodeContainer, Ipv4InterfaceContainer>>   // AS => NodeContainer, Interface of servers
+borderNodeAssignment(
+    BriteTopologyHelper& bth,
+    InternetStackHelper& stack,
+    Ipv4AddressHelper& address,
+    std::map<std::string, int>& addr_map)                                 // SetBase before calling this function
+{
+    NS_LOG_INFO("Border P2P node Init");
+    std::vector<std::pair<NodeContainer, Ipv4InterfaceContainer>> assgn;
+    uint32_t nas = bth.GetNAs();
+    PointToPointHelper p2p;
+    p2p.SetDeviceAttribute("DataRate", StringValue("5Mbps"));
+    p2p.SetChannelAttribute("Delay", StringValue("2ms"));
 
-//     for (auto rib = ribs.begin(); rib != ribs.end(); rib++)
-//     {
-//         // * seeding is turned off so that each run of the program has the same series of random numbers
-//         // srand((unsigned) time(NULL)); 
-//         int num_peers = rand() % (ribs.size() / 2);
-//         std::shuffle(queue.begin(), queue.end(), rng);
+    std::map<int, std::vector<int>> border_routers;
 
-//         std::vector<Address> addresses;
-//         for (int i = 0; i < num_peers; i++)
-//         {
-//             RIB* picked = queue[queue.size()-1-i];
-//             Address picked_addr = Address(picked->my_addr);
-//             addresses.push_back(picked_addr);
-//         }
-//         // * add peers for current rib
-//         (*rib)->AddPeers(addresses);
+    for (uint32_t i = 0; i < nas; i++){
+        uint32_t nnodes = bth.GetNNodesForAs(i);
+        for (uint32_t j = 0; j < nnodes; j++){
+            auto node = bth.GetNodeForAs(i, j);
+            uint32_t ndevs = node->GetNDevices();
+            bool is_border = false;
+            for (uint32_t k = 0; k < ndevs; k++){
+                auto dev = node->GetDevice(k);
+                if (dev->IsPointToPoint()){
+                    Ptr<Channel> __pc = dev->GetChannel();
+                    Ptr<PointToPointChannel> pc = StaticCast<PointToPointChannel, Channel>(__pc);
+                    uint32_t nChanDevs = pc->GetNDevices();
+                    std::stringstream ss1;
+                    ss1 << node->GetObject<Ipv4>()->GetAddress(1, 0).GetAddress();
 
-//         NS_LOG_INFO("number of peers for rib " << (*rib)->my_addr << " is " << (*rib)->peers.size());
-//     }
-// }
+                    for (uint32_t l = 0; l < nChanDevs; l++){
+                        std::stringstream ss2;
+                        auto chanDev = pc->GetDevice(l);
+                        ss2 << chanDev->GetNode()->GetObject<Ipv4>()->GetAddress(1, 0).GetAddress();
+                        if (addr_map[ss2.str()] != (int)i){
+                            is_border = true;
+                        }
+                    }
+
+                }
+            }
+            
+            if (is_border){
+                NS_LOG_INFO("Found border router " << i << " " << j << " " << bth.GetNodeForAs(i, j)->GetObject<Ipv4>()->GetAddress(1, 0).GetAddress());
+                border_routers[i].push_back(j);
+            }
+
+        }
+    }
+
+    for (uint32_t i = 0; i < nas; i++){
+        uint32_t nserver = border_routers[i].size();
+
+        NS_LOG_INFO("AS: " << i << " Nodes: " << bth.GetNNodesForAs(i) << " Nodes to create: " << nserver);
+
+        NodeContainer servers;
+        Ipv4InterfaceContainer interfaces;
+        servers.Create(nserver);
+        stack.Install(servers);
+
+        for (uint32_t j = 0; j < nserver; j++){
+            NodeContainer __nodes;
+            __nodes.Add(servers.Get(j));
+            __nodes.Add(bth.GetNodeForAs(i, border_routers[i][j]));
+            auto __p2pdevs = p2p.Install(__nodes);
+            Ipv4InterfaceContainer __interfaces = address.Assign(__p2pdevs);
+            interfaces.Add(__interfaces.Get(0));
+        }
+
+        assgn.push_back(std::make_pair(servers, interfaces));
+    }
+
+    return assgn;
+}
 
 std::string gen_random(const int len) {
     static const char alphanum[] =
@@ -329,15 +379,10 @@ main(int argc, char* argv[])
         bth, stack, address, 0
     );
 
-    address.SetBase(SWITCH_SUBNET, COMMON_MASK); // * 1 overlay switch out of every 10 underlay switches 
-    auto switchAssgn = randomNodeAssignment(
-        bth, stack, address, 0.1
-    );
-
-    auto ribs = installRIBs(serverAssgn, Seconds(0.5), Seconds(GLOBAL_STOP_TIME), &addr_map);
 
     // * add peers to each RIB
     // assignRandomASPeers(ribs.first);
+    auto ribs = installRIBs(serverAssgn, Seconds(1.0), Seconds(GLOBAL_STOP_TIME), &addr_map);
 
     for (uint32_t i = 0; i < bth.GetNAs(); i++){
         for (uint32_t j = 0; j < bth.GetNLeafNodesForAs(i); j++){
@@ -366,6 +411,8 @@ main(int argc, char* argv[])
             
         }
     }
+
+
 
 
     // ns3::ObjectFactory fac;
@@ -435,7 +482,42 @@ main(int argc, char* argv[])
     dcApps3.Start(Seconds(30.0));
     dcApps3.Stop(Seconds(GLOBAL_STOP_TIME));
 
+    address.SetBase(SWITCH_SUBNET, COMMON_MASK); // * 1 overlay switch out of every 10 underlay switches 
+    auto switchAssgn = borderNodeAssignment(
+        bth, stack, address, addr_map
+    );
+
+
+    // Redo Addr Map after switches are added
+    // for (uint32_t i = 0; i < bth.GetNAs(); i++){
+    //     for (uint32_t j = 0; j < bth.GetNLeafNodesForAs(i); j++){
+    //         Ptr<Node> node = bth.GetLeafNodeForAs(i, j);
+    //         for (uint32_t k = 0; k < node->GetNDevices(); k++){
+    //             Ptr<Ipv4> ipv4 = node->GetObject<Ipv4>();
+    //             Ipv4Address addr = ipv4->GetAddress(k, 0).GetAddress();
+    //             // Address addr = node->GetDevice(k)->GetAddress();
+    //             // assert(addr_map.find(addr) == addr_map.end());
+    //             std::stringstream ss;
+    //             ss << addr;
+    //             addr_map[ss.str()] = i;
+    //         }
+    //     }
+    //     for (uint32_t j = 0; j < bth.GetNNodesForAs(i); j++){
+    //         Ptr<Node> node = bth.GetNodeForAs(i, j);
+    //         for (uint32_t k = 0; k < node->GetNDevices(); k++){
+    //             Ptr<Ipv4> ipv4 = node->GetObject<Ipv4>();
+    //             Ipv4Address addr = ipv4->GetAddress(k, 0).GetAddress();
+    //             // Address addr = node->GetDevice(k)->GetAddress();
+    //             // assert(addr_map.find(addr) == addr_map.end());
+    //             std::stringstream ss;
+    //             ss << addr;
+    //             addr_map[ss.str()] = i;
+    //         }
+            
+    //     }
+    // }
     auto switches = installSwitches(switchAssgn, serverAssgn, Seconds(0.9), Seconds(GLOBAL_STOP_TIME));
+
 
 
     ns3::ObjectFactory clientFactory; 
@@ -443,12 +525,12 @@ main(int argc, char* argv[])
     ApplicationContainer dummyClientApps;
     BUILD_CLIENT(2, "user:2", clientFactory, dummyClientApps)
     BUILD_CLIENT(3, "user:3", clientFactory, dummyClientApps)
-    BUILD_CLIENT(4, "user:4", clientFactory, dummyClientApps)
-    BUILD_CLIENT(5, "user:5", clientFactory, dummyClientApps)
-    BUILD_CLIENT(6, "user:6", clientFactory, dummyClientApps)
-    BUILD_CLIENT(7, "user:7", clientFactory, dummyClientApps)
-    BUILD_CLIENT(8, "user:8", clientFactory, dummyClientApps)
-    BUILD_CLIENT(9, "user:9", clientFactory, dummyClientApps)
+    // BUILD_CLIENT(4, "user:4", clientFactory, dummyClientApps)
+    // BUILD_CLIENT(5, "user:5", clientFactory, dummyClientApps)
+    // BUILD_CLIENT(6, "user:6", clientFactory, dummyClientApps)
+    // BUILD_CLIENT(7, "user:7", clientFactory, dummyClientApps)
+    // BUILD_CLIENT(8, "user:8", clientFactory, dummyClientApps)
+    // BUILD_CLIENT(9, "user:9", clientFactory, dummyClientApps)
     dummyClientApps.Start(Seconds(300.0));
     dummyClientApps.Stop(Seconds(GLOBAL_STOP_TIME));
 
