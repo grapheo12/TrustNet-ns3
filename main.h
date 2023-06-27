@@ -110,6 +110,8 @@ namespace ns3{
         uint16_t GetPacketWindowSize() const;
         void SetPacketWindowSize(uint16_t size);
         Address my_rib;
+        std::map<Address, Ptr<Socket>> sock_cache;
+        void ForwardPacket(Address who, uint32_t port, Ptr<Packet> what);
 
     protected:
         void DoDispose() override;
@@ -515,6 +517,8 @@ namespace ns3{
         std::set<std::string> dcnames_to_route;
         std::map<Address, int> peers_to_ASNum;
         Ipv4Address my_ip;
+        std::map<Address, Ptr<Socket>> sock_cache;
+        void ForwardPacket(Address who, uint32_t port, Ptr<Packet> what);
 
     protected:
         void DoDispose() override;

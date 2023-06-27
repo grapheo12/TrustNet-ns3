@@ -545,23 +545,24 @@ namespace ns3
 
         Ptr<Packet> p = Create<Packet>((uint8_t *)buff, DATAGRAM_SIZE*4); // 8+4 : the size of the seqTs header
         p->AddHeader(seqTs);
+        ForwardPacket(Ipv4Address(destination_ip.c_str()), DCSERVER_ECHO_PORT, p);
 
-        if ((switch_socket->Send(p)) >= 0)
-        {
-            ++m_sent;
-            m_totalTx += p->GetSize();
-    #ifdef NS3_LOG_ENABLE
-                // NS_LOG_INFO("TraceDelay TX " << m_size << " bytes to " << m_peerAddressString << " Uid: "
-                                            // << p->GetUid() << " Time: " << (Simulator::Now()).As(Time::S));
-    #endif // NS3_LOG_ENABLE
-        }
+    //     if ((switch_socket->Send(p)) >= 0)
+    //     {
+    //         ++m_sent;
+    //         m_totalTx += p->GetSize();
+    // #ifdef NS3_LOG_ENABLE
+    //             // NS_LOG_INFO("TraceDelay TX " << m_size << " bytes to " << m_peerAddressString << " Uid: "
+    //                                         // << p->GetUid() << " Time: " << (Simulator::Now()).As(Time::S));
+    // #endif // NS3_LOG_ENABLE
+    //     }
         
-    #ifdef NS3_LOG_ENABLE
-        else
-        {
-                // NS_LOG_INFO("Error while sending " << m_size << " bytes to " << m_peerAddressString);
-        }
-    #endif // NS3_LOG_ENABLE
+    // #ifdef NS3_LOG_ENABLE
+    //     else
+    //     {
+    //             // NS_LOG_INFO("Error while sending " << m_size << " bytes to " << m_peerAddressString);
+    //     }
+    // #endif // NS3_LOG_ENABLE
 
         // m_sendEvent = Simulator::Schedule(m_interval, &DummyClient::Send, this);
         Simulator::Schedule(Seconds(10), &DummyClient2::SendUsingPath, this, path, destination_ip);
@@ -623,4 +624,30 @@ namespace ns3
     {
         return m_totalTx;
     }
+
+    void
+    DummyClient2::ForwardPacket(Address who, uint32_t port, Ptr<Packet> what)
+    {
+        auto it = sock_cache.find(who);
+        Ptr<Socket> __sock = NULL;
+        if (it == sock_cache.end()){
+            TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
+
+            Ptr<Socket> sock = Socket::CreateSocket(GetNode(), tid);
+            sock->Connect(
+                InetSocketAddress(Ipv4Address::ConvertFrom(who), port));
+
+            sock_cache[who] = sock;
+            __sock = sock;
+        }else{
+            __sock = it->second;
+        }
+        if (__sock->Send(what) == -1){
+            NS_LOG_INFO("Last mile forward failed");
+        }else{
+            NS_LOG_INFO("Delivery complete");
+        }
+
+    }
+
 }

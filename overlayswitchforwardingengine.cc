@@ -239,8 +239,8 @@ namespace ns3
 
                     Address next_hop_addr = *(it->second.begin());      //NOTE - Default next oswitch to pick is the "first" one
                     // Pick the nearest next hop overlay switch if there is one that's been calculated
-                    // std::optional<Address> smart_next_hop = parentOverlaySwitch->neighborProber->GetNearestOverlaySwitchInTD(other_td_num);
-                    std::optional<Address> smart_next_hop = parentOverlaySwitch->neighborProber->GetRROverlaySwitchInTD(td_num);
+                    std::optional<Address> smart_next_hop = parentOverlaySwitch->neighborProber->GetNearestOverlaySwitchInTD(other_td_num);
+                    // std::optional<Address> smart_next_hop = parentOverlaySwitch->neighborProber->GetRROverlaySwitchInTD(td_num);
                     if (smart_next_hop.has_value()) {
                         NS_LOG_INFO("Using \"smart\" next hop: " << smart_next_hop.value() << ", instead of: " << next_hop_addr);
                         next_hop_addr = smart_next_hop.value();

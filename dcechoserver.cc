@@ -258,7 +258,11 @@ namespace ns3
                 Ptr<Packet> replyPacket = Create<Packet>((const uint8_t *)buff, sz);
                 NS_LOG_INFO("Echoing packet");
                 replyPacket->AddHeader(seqTs);
-                reply_socket->Send(replyPacket);
+                // reply_socket->Send(replyPacket);
+                uint32_t reply_ip_num = buff[4];
+                uint32_t reply_port = buff[5];
+                Ipv4Address reply_ip(reply_ip_num);
+                ForwardPacket(reply_ip, reply_port, replyPacket);
                 NS_LOG_INFO("Packet echo done");
 
                 if (InetSocketAddress::IsMatchingType(from))
@@ -284,6 +288,31 @@ namespace ns3
                 m_received++;
             }
         }
+    }
+
+    void
+    DCEchoServer::ForwardPacket(Address who, uint32_t port, Ptr<Packet> what)
+    {
+        auto it = sock_cache.find(who);
+        Ptr<Socket> __sock = NULL;
+        if (it == sock_cache.end()){
+            TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
+
+            Ptr<Socket> sock = Socket::CreateSocket(GetNode(), tid);
+            sock->Connect(
+                InetSocketAddress(Ipv4Address::ConvertFrom(who), port));
+
+            sock_cache[who] = sock;
+            __sock = sock;
+        }else{
+            __sock = it->second;
+        }
+        if (__sock->Send(what) == -1){
+            NS_LOG_INFO("Last mile forward failed");
+        }else{
+            NS_LOG_INFO("Delivery complete");
+        }
+
     }
 
 
