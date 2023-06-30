@@ -32,7 +32,7 @@ Commit Hash correspondences:
 * **Closest**: 93cde5876b1a31b0eeb00d1646dc97e29ce07034
 
 Take main branch as an example, to run the simulation for the **Border** case:
-1. Create a `trace/` directory within the NS3 directory
+1. Create a `traces/` directory within the NS3 directory
 2. Clone this repo and name it `trustnet` inside the `scratch` directory of NS3.
 3. Then from the parent NS3 directory, run
 
