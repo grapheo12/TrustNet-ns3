@@ -317,7 +317,7 @@ main(int argc, char* argv[])
     // BRITE needs a configuration file to build its graph. By default, this
     // example will use the TD_ASBarabasi_RTWaxman.conf file. There are many others
     // which can be found in the BRITE/conf_files directory
-    std::string confFile = "scratch/trustnet-1/brite-conf.conf";
+    std::string confFile = "scratch/trustnet/brite-conf.conf";
     bool tracing = false;
     bool nix = true;
 
