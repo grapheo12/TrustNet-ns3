@@ -75,7 +75,7 @@ ApplicationContainer RIB::InstallTraceRoute(const std::vector<Address>& all_ribs
         RIBTraceRouteHelper trHelper(Ipv4Address::ConvertFrom(x));
         trApps.Add(trHelper.Install(this, my_node));
         std::stringstream ss;
-        ss << "results-1/traces/";
+        ss << "traces/";
         Ipv4Address::ConvertFrom(my_addr).Print(ss);
         ss << "_";
         Ipv4Address::ConvertFrom(x).Print(ss);
