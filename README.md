@@ -18,7 +18,7 @@ data.
 
 * NS3 (version 3.38 preferred, 3.37 works)
 * BRITE integration with NS3 (check [tutorial](https://www.nsnam.org/docs/models/html/brite.html))
-* (Optional visualization) PyViz Integration with NS3 (???)
+* (Optional visualization) PyViz Integration with NS3 (check [tutorial](https://www.nsnam.org/wiki/PyViz))
 
 
 ## Run the simulation
