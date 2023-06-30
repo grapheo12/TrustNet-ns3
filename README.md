@@ -4,15 +4,13 @@ based trust policies of end users. It allows packets to flow
 only through domains that the user trusts to not leak meta-
 data.
 
-[link?]()
-
 ## Table of Contents
-* Prerequisites
-* Run the simulation
-* Collecting performance measures
-* Parameter change
-    * Modify number of Users
-    * Modify Users' packet sending rate
+* [Prerequisites](#prerequisites)
+* [Run the simulation](#run-the-simulation)
+* [Collecting performance measures](#collecting-performance-measures)
+* [Parameter change](#parameter-change)
+    * [Modify number of Users](#modify-number-of-users)
+    * [Modify Users' packet sending rate](#modify-users-packet-sending-rate)
     
 
 
@@ -25,21 +23,23 @@ data.
 
 ## Run the simulation
 
-First of all, our simulation covers multiple cases (see paper eval section link???). Each simulation case is in its separate branch. 
+First of all, our simulation covers multiple cases (see our paper's Evaluation section). 
 
-Branch correspondance:
-* **Border**: main
-* **Direct**: direct
-* **RR**: RR
-* **Closest**: closest
+Commit Hash correspondences:
+* **Border**: main / 41bce0d9ed5c8b627f309e2cc223ddbb7db5d83f
+* **Direct**: c84060d0234bf81cb262f606bd2b59eb0ff4ae0c
+* **RR**: 61b3458663425dcea7b17db350f3e5398e9c3c42
+* **Closest**: 93cde5876b1a31b0eeb00d1646dc97e29ce07034
 
-Take main branch as an example, to run the simulation:
-clone this repo and name it `trustnet` inside the `scratch` directory of NS3.
-Then from the parent NS3 directory, run
+Take main branch as an example, to run the simulation for the **Border** case:
+1. Create a `trace/` directory within the NS3 directory
+2. Clone this repo and name it `trustnet` inside the `scratch` directory of NS3.
+3. Then from the parent NS3 directory, run
 
 ```bash
 ./ns3 run scratch/trustnet/main.cc 2>debug.log
 ```
+
 
 If you need visualization, append `--vis` at the end.
 
