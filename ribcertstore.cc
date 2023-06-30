@@ -205,7 +205,7 @@ namespace ns3
                 }
 
                 for (auto &x: trustRelations){
-                    NS_LOG_INFO("Trust Relation: " << x.first << " "
+                    NS_LOG_INFO("AS" << ((RIB *)parent_ctx)->td_num << ": Trust Relation: " << x.first << " "
                         << x.second.first << " " << x.second.second);
                 }
 

@@ -1,6 +1,7 @@
 #include "main.h"
 #include <string>
 #include <sstream>
+#include <iostream>
 // #define DATAGRAM_SIZE (8+path.size()+16 + 2)
 #define DATAGRAM_SIZE 100
 
@@ -95,6 +96,7 @@ namespace ns3
         Ptr<Packet> packet;
         Address from;
         while ((packet = sock->RecvFrom(from))){
+            NS_LOG_INFO("opwejgnkjwngwkegnwkgwngkjwbgwkgbsdkjvbsdvblkjs");
             if (packet->GetSize() > 0){
                 uint32_t receivedSize = packet->GetSize();
                 SeqTsHeader seqTs;
@@ -121,13 +123,52 @@ namespace ns3
                     int64_t *content = (int64_t *)((char *)buff + 32 + 4 * hop_cnt + 64);
                     int64_t timeNow = Simulator::Now().GetMicroSeconds();
 
-                    NS_LOG_INFO("Receive delay: " << timeNow - (*content) << " Hops: " << buff[1]);
+                    std::cerr << "Receive delay: " << timeNow - (*content) << " Hops: " << buff[1] << std::endl;
                 }else{
                     NS_LOG_INFO("Received Empty reply from DC");
                 }
             }
         }
     }
+
+    void
+    DummyClient2::HandleProberResponse(Ptr<Socket> sock)
+    {
+        Ptr<Packet> packet;
+        Address from;
+        while ((packet = sock->RecvFrom(from))){
+            if (packet->GetSize() > 0){
+                std::stringstream ss;
+                packet->CopyData(&ss, packet->GetSize());
+                std::string payload = ss.str();
+                
+                if (payload.size() >= 18 && payload.substr(0, 18) == "ECHORESPONSECLIENT") {
+                    NS_LOG_INFO("Processing Prober Response");
+                    // * Format: 
+                    // *     "ECHORESPONSECLIENT [SendTime]"
+                    
+                    const char* payloadBuf = payload.c_str();
+                    int64_t sendTime = *(int64_t*)(payloadBuf+19);
+                    int64_t timeNow = Simulator::Now().GetMicroSeconds();
+                    int64_t timeDiff = timeNow - sendTime;
+
+                    Ipv4Address oswitch_ip = InetSocketAddress::ConvertFrom(from).GetIpv4();
+                    if (m_nearestOverlaySwitchInMyDomain.has_value()) {
+                        auto& [curr_oswitch_ip, rtt] = m_nearestOverlaySwitchInMyDomain.value();
+                        if (timeDiff < rtt) {
+                            curr_oswitch_ip = oswitch_ip;
+                            rtt = timeDiff;
+                        }
+                    } else {
+                        m_nearestOverlaySwitchInMyDomain = std::make_optional(std::make_pair(oswitch_ip, timeDiff));
+                    }
+                }
+            }
+        }
+    }
+
+
+
     void
     DummyClient2::StartApplication()
     {
@@ -144,6 +185,17 @@ namespace ns3
                 NS_FATAL_ERROR("Failed to bind socket");
             }
             reply_socket->SetRecvCallback(MakeCallback(&DummyClient2::HandleDCResponse, this));
+
+
+            
+            switch_prober_server_socket = Socket::CreateSocket(GetNode(), tid);
+            InetSocketAddress prober_local = InetSocketAddress(Ipv4Address::GetAny(), CLIENT_PROBER_PORT);
+            if (switch_prober_server_socket->Bind(prober_local) == -1)
+            {
+                NS_FATAL_ERROR("Failed to bind socket");
+            }
+            switch_prober_server_socket->SetRecvCallback(MakeCallback(&DummyClient2::HandleProberResponse, this));
+
 
             if (Ipv4Address::IsMatchingType(m_peerAddress) == true)
             {
@@ -311,8 +363,35 @@ namespace ns3
                 path_computer_socket->Send(p);   
             }
         }
+    }
+
+    void 
+    DummyClient2::SimpliEchoRequest(const Ipv4Address& dest) 
+    {
+        // OverlaySwitch* rib = (OverlaySwitch*) parent_ctx;
+        // int myTDNumber = global_addr_to_AS.at(rib->rib_addr);
+        int64_t timeNow = Simulator::Now().GetMicroSeconds();
+
+        // * Create data buffer to send
+        // * Format: 
+        // *     "ECHOREQUESTCLIENT [SendTime]"
+        size_t bufSize = 17 + 1 + 8;
+        char buf[bufSize];
+
+        memcpy(buf, "ECHOREQUESTCLIENT", 17);
+        buf[17] = ' ';
+        *(int64_t *)(buf+18) = timeNow;
+
+        // Create socket
+        TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
+
+        Ptr<Socket> sock = Socket::CreateSocket(GetNode(), tid);
+        sock->Connect(InetSocketAddress(dest, OVERLAY_PROBER_PORT));
 
         
+        NS_LOG_INFO("DummyClient2: Sending SimpliEcho request");
+        Ptr<Packet> p = Create<Packet>((const uint8_t *)buf, bufSize);
+        NS_LOG_INFO("DummyClient2: Send status: " << sock->Send(p));
     }
 
 
@@ -335,6 +414,13 @@ namespace ns3
                     // * deserialize the advertisement packet
                     std::string body = temp.substr(5);
 
+                    // Check if empty path
+                    if (body == ",")
+                    {
+                        NS_LOG_INFO("Got empty path from RIBPathComputer, ignoring this useless response");
+                        continue;
+                    }
+
 
                     std::vector<std::string> path;
                     auto pos = body.find(",");
@@ -347,15 +433,21 @@ namespace ns3
                     }
 
 
-                    Ipv4Address chosen = *(switches_in_my_td.begin());      // TODO: Round robin choice
-                    if (!switch_socket){
-                        TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
-                        switch_socket = Socket::CreateSocket(GetNode(), tid);
-
-                        switch_socket->Connect(
-                            InetSocketAddress(chosen, OVERLAY_FWD));
-
+                    Ipv4Address chosen = *(switches_in_my_td.begin());      //NOTE - This is the default oswitch to send packet to in case no distance probing has taken place
+                    // Update target overlay switch to send packet to if there is a nearer one by knowledge of probing
+                    if (m_nearestOverlaySwitchInMyDomain.has_value()) {
+                        auto& [oswitch_addr, rtt] = m_nearestOverlaySwitchInMyDomain.value();
+                        NS_LOG_INFO("Chosen a better overlay switch: " << oswitch_addr << ", instead of: " << chosen);
+                        chosen = oswitch_addr;
                     }
+
+                    
+                    TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
+                    switch_socket = Socket::CreateSocket(GetNode(), tid);
+
+                    switch_socket->Connect(InetSocketAddress(chosen, OVERLAY_FWD));
+
+                    
                     
                     // * Send out the packet
                     std::string origin_server = path[path.size()-1];
@@ -379,8 +471,9 @@ namespace ns3
                         switches_in_my_td.insert(addr);
                     }
 
+                    // Measure the RTT and pick the nearest one when sending next time
                     for (auto &addr: switches_in_my_td){
-                        NS_LOG_INFO("Dummy Client2 Switches: " << addr);
+                        SimpliEchoRequest(addr);
                     }
                 }
 
@@ -472,7 +565,7 @@ namespace ns3
     #endif // NS3_LOG_ENABLE
 
         // m_sendEvent = Simulator::Schedule(m_interval, &DummyClient::Send, this);
-        Simulator::Schedule(Seconds(0.01), &DummyClient2::SendUsingPath, this, path, destination_ip);
+        Simulator::Schedule(Seconds(10), &DummyClient2::SendUsingPath, this, path, destination_ip);
         
     }
 

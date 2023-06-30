@@ -325,8 +325,12 @@ namespace ns3
                     NS_LOG_INFO("Detected advertising loop, ignoring current ads...");
                     continue;
                 }
+
                 bool updated = UpdateNameCache(advertised_entry);
+
                 NS_LOG_INFO("Number of ads: " << db.size());
+
+                NS_LOG_INFO("7123870127491273901275649604917284912074891274912749812");
 
                 if (updated) {
                     // add itself to the td_path of the advertisement
@@ -365,9 +369,23 @@ namespace ns3
                     //     NS_LOG_INFO("issuer: " << it->first << ", entity: " << it->second.first << ", type: " << it->second.second);
                     // }
                     if (is_origin_AS_for_curr_ad) {
-                        auto [range_begin, range_end] = trust_relation_map.equal_range("fogrobotics:" + advertised_entry->dc_name);
+                        // WARNING: VERY VERY HACKY!!!!!
+                        std::string __chk_name = "fogrobotics1";
+                        auto [range_begin, range_end] = trust_relation_map.equal_range("fogrobotics1:" + advertised_entry->dc_name);
+                        if (range_begin == range_end){
+                            auto [__range_begin, __range_end] = trust_relation_map.equal_range("fogrobotics2:" + advertised_entry->dc_name);
+                            range_begin = __range_begin;
+                            range_end = __range_end;
+                            __chk_name = "fogrobotics2";
+                        }
+                        if (range_begin == range_end){
+                            auto [__range_begin, __range_end] = trust_relation_map.equal_range("fogrobotics3:" + advertised_entry->dc_name);
+                            range_begin = __range_begin;
+                            range_end = __range_end;
+                            __chk_name = "fogrobotics3";
+                        }
                         for (auto it = range_begin; it != range_end; it++) {
-                            // check if "entity" is the data capsule name
+                            // check if "entity" is the data capsule server name
                             if (Ipv4Address((it->second.first).c_str()) == advertised_entry->origin_server) {
                                 trust_curr_AS = true;
                                 // * Attach trust from DC owner to current name to the advertisement
@@ -377,7 +395,7 @@ namespace ns3
                                 advertised_entry->trust_cert.type = "trust";
                                 // * Attach distrust relations of the DC owner
                                 auto& distrust_relation_map = rib->certStore->distrustRelations;
-                                auto [range_start, range_stop] = distrust_relation_map.equal_range("fogrobotics:" + advertised_entry->dc_name);
+                                auto [range_start, range_stop] = distrust_relation_map.equal_range(__chk_name + ":" + advertised_entry->dc_name);
                                 for (auto it = range_start; it != range_stop; ++it) {
                                     advertised_entry->distrust_certs.push_back(
                                         NameDBEntry::DistrustCert {"distrust", it->second, it->first}
@@ -405,6 +423,8 @@ namespace ns3
                             && advertised_entry->trust_cert.r_transitivity == 0) ) {
                                 std::pair<std::string, int> __val = std::make_pair(advertised_entry->trust_cert.entity, advertised_entry->trust_cert.r_transitivity);
                                 rib->trustRelations->insert(std::make_pair(advertised_entry->trust_cert.issuer, __val));
+                                std::pair<std::string, int> __val2 = std::make_pair(advertised_entry->trust_cert.issuer, INT_MAX);
+                                rib->trustRelations->insert(std::make_pair(advertised_entry->trust_cert.entity, __val2));
                         }
 
                         if (advertised_entry->distrust_certs.size() != 0) {
@@ -469,6 +489,8 @@ namespace ns3
                 } else {
                     delete advertised_entry;
                 }
+
+                NS_LOG_INFO("ajsdfoijaofweifn,dasnf,masdnfm,asnfd,mnasd,fnwefiowe");
 
                 
 
